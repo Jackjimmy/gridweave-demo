@@ -1,0 +1,79 @@
+/* 首页与画册共用的单行游戏入口，尺寸与文字层级保持一致。 */
+.bar {
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: var(--radius-card);
+  background: linear-gradient(180deg, #4a91f7, #3b82f6);
+  box-shadow: 0 var(--press-depth) 0 var(--press-shade-accent);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #fff;
+  text-align: left;
+  transition: transform 0.06s ease, box-shadow 0.06s ease;
+}
+
+.bar:active,
+.bar[data-pressed] {
+  transform: translateY(calc(var(--press-depth) - var(--press-sunk)));
+  box-shadow: 0 var(--press-sunk) 0 var(--press-shade-accent);
+}
+
+@media (hover: hover) {
+  .bar:hover {
+    background: linear-gradient(180deg, #5b9bf8, #4a8bf7);
+  }
+}
+
+.text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.action {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.detail {
+  font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  letter-spacing: 0;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.86);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 三角用边框拼，不用字体里的 ▶：字体缺字时那儿会掉出一个方框 */
+.play {
+  position: relative;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+}
+
+.play::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-45%, -50%);
+  border-left: 7px solid #fff;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+}
+

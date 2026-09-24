@@ -1,0 +1,30 @@
+{
+  "groups": {
+    "探索发现": "探索發現",
+    "日常生活": "日常生活",
+    "精选合集": "精選合集",
+    "自然世界": "自然世界"
+  },
+  "albums": {
+    "deep-blue": "深藍之海",
+    "festive-tales": "節日奇譚",
+    "sky-beyond": "天空之上",
+    "sweet-shop": "甜品店"
+  },
+  "sections": {
+    "deep-blue/down-and-down": "一路下潛",
+    "festive-tales/prologue": "輕量序章",
+    "sky-beyond/farther-out": "再往外",
+    "sweet-shop/shop": "逛一圈甜品店"
+  },
+  "chapters": {
+    "deep-blue/down-and-down/big-ones": "大塊頭",
+    "deep-blue/down-and-down/shallows": "淺水灘",
+    "deep-blue/down-and-down/shapes-in-deep": "深處的影子",
+    "sky-beyond/farther-out/in-orbit": "在軌道上",
+    "sky-beyond/farther-out/last-beam": "最後一束光",
+    "sky-beyond/farther-out/leaving-ground": "離開地面",
+    "sweet-shop/shop/cake-window": "蛋糕櫥窗",
+    "sweet-shop/shop/from-the-oven": "剛出爐"
+  }
+}

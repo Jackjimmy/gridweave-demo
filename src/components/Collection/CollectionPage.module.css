@@ -1,0 +1,171 @@
+/*
+ * 这一页自己拿着滚动，不借根节点那一份（同主题画册页，见 LibraryPage.module.css）。
+ *
+ * 根节点的滚动全文档共用一份，谁在文档流里就归谁：摊开一幅藏品时这一层变成预热层
+ * （position: fixed），那一份跟着归了别人，退页那一下又被清零，从藏品页退回来
+ * 永远在页顶。装在自己这个容器上之后，位置跟着节点走。
+ *
+ * 容器铺满整层，不是只铺 520px 那一栏：宽屏上栏外那圈留白也得拖得动。
+ */
+.scroller {
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  /* 到底了别把这一下接着传给根滚动视图，整页跟着橡皮筋就露馅了 */
+  overscroll-behavior-y: contain;
+}
+
+.page {
+  max-width: 520px;
+  min-height: 100%;
+  margin: 0 auto;
+  --page-gutter: 22px;
+  padding: calc(var(--back-inset-y) + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)))
+    calc(var(--page-gutter) + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)))
+    calc(36px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))
+    calc(var(--page-gutter) + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+}
+
+.back {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  /* 退回页边距，让箭头落在与对局页顶栏同一个横坐标上，见 tokens.css */
+  margin-left: calc(var(--back-inset-x) - var(--page-gutter));
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  /* 与关卡内顶栏同一枚返回：主题蓝，按下浮出一层浅底 */
+  color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.12s ease;
+}
+
+.back:active,
+.back[data-pressed] {
+  background: var(--color-accent-soft);
+}
+
+@media (hover: hover) {
+  .back:hover {
+    background: var(--color-accent-soft);
+  }
+}
+
+.back svg {
+  display: block;
+  flex: 0 0 auto;
+}
+
+/*
+ * 页名一行到底。
+ *
+ * 顶栏三样是并排的：返回、页名、右端那块计数。页名折成两行会把整条顶栏顶高，
+ * 底下整页跟着往下挪一截——中文的「我的收藏」四个字一行绰绰有余，
+ * 换成「Meine Sammlung」就正好差一点。所以放不下就收字号
+ * （useFitOneLine，与册页上关卡名同一套做法）；收到下界仍放不下才省略。
+ */
+.title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 21px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+/*
+ * 字距按书写系统分开给：0.08em 是给中日韩那几个字的舒展，同样的值摊在
+ * 「Meine Sammlung」十三个字母上就是白白多占一截——十三个字母乘 0.08em，
+ * 光字距就吃掉十几个像素，把本来放得下的一行挤到要收字号。
+ */
+:root:lang(en) .title,
+:root:lang(de) .title,
+:root:lang(fr) .title,
+:root:lang(es) .title,
+:root:lang(pt-BR) .title {
+  letter-spacing: 0.02em;
+}
+
+.tally {
+  position: relative;
+  flex: 0 0 auto;
+  overflow: hidden;
+  padding: 4px 11px;
+  border-radius: 8px;
+  background: var(--color-line);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tallyFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--color-accent-soft);
+}
+
+.tallyText {
+  position: relative;
+}
+
+.tallyText b {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--color-accent);
+}
+
+/*
+ * 一册一段。整段用 content-visibility 逐段渲染：一面画满的墙是 602 张 canvas，
+ * 全量挂上去在低端机上是以百毫秒计的一次长任务；划不到的段不进布局。
+ * contain-intrinsic-size 给出没渲染时的占位高度，滚动条长度才稳定。
+ */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 190px;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 0 2px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--color-text);
+}
+
+.sectionMeta {
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 一幅都没有时，这一页只剩一句话：别把空网格摆出来当"待办" */
+.empty {
+  margin: 32px 2px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}

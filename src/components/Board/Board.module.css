@@ -1,0 +1,501 @@
+.board {
+  --board-content-extent: calc(var(--cell-size) * var(--size));
+  display: grid;
+  position: relative;
+  /*
+   * 不依赖 max-content 推导盘面外框。iOS 16 在相邻线索的文字状态切换时会重新量
+   * 整个 grid；显式给出 border-box 两轴后，任何格子/线索的绘制更新都没有机会
+   * 改变棋盘本身或其父布局的几何。
+   */
+  width: calc(var(--board-content-extent) + var(--board-border-width) * 2);
+  height: calc(var(--board-content-extent) + var(--board-border-width) * 2);
+  border: var(--board-border-width) solid var(--color-board-frame);
+  background: var(--color-surface);
+  contain: layout paint;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.row {
+  display: contents;
+}
+
+.cell {
+  width: var(--cell-size);
+  height: var(--cell-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(var(--cell-size) * 0.62);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-mark);
+  background: var(--color-surface);
+  transition: background-color 0.1s ease;
+}
+
+/*
+ * 拖动进行中，空格与标记格的背景过渡摘掉。
+ *
+ * 十字高亮每跨一格要翻转约 2×size 个格子（Game.tsx 的 hovered），每个都带一条
+ * 0.1s 的 background-color 过渡——而 background-color 不可合成。15×15 上一次快速
+ * 拖拽就是几百次小面积重绘，且每格还拖着 100ms 的尾巴，尾巴之间互相叠着。
+ *
+ * 只摘 .empty 与 .marked：高亮只改这两类格子的背景（见下方 .empty.highlighted），
+ * 填色格不参与高亮。落子那一下的 100ms 淡入因此原样保留——那是手感，不是税。
+ *
+ * data-dragging 由 Game 在落笔/收笔时直接写在 .page 上，不走 state（理由见 Game.tsx）。
+ */
+[data-dragging] .empty,
+[data-dragging] .marked {
+  transition: none;
+}
+
+/*
+ * 对局盘面的绘制层。整块不透明地铺满内容盒，因此下方那 225 个 DOM 格子
+ * 一个像素都透不出来——它们只留结构、无障碍与指针命中（见 BoardCanvas）。
+ *
+ * z-index 1：压住格子。会动的幽灵条在 2，揭晓画面在 3。
+ */
+.boardCanvas {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/*
+ * 对局态的板底改用外框色。
+ *
+ * 盘面内部已经是单张 canvas，格与格、格与线之间不可能再有缝。剩下的只有周边：
+ * canvas 图层的设备像素尺寸由 WebKit 定，父元素的背景与边框又走另一套取整助手，
+ * 盘面原点落在半个物理像素上时（`.layout` 是 margin:0 auto 居中的，宽度奇偶一变
+ * 就会落到 X.5，DPR 3 上正好是 1.5 个物理像素、取整规则的分界点），两者会差一个
+ * 物理像素，板底就从外框内沿漏出一条线。
+ *
+ * 实测这条线会随盘面宽高的奇偶在下沿与右沿之间跳——原点的小数部分是居中算出来的，
+ * 从 CSS/JS 这一侧控制不住。但它唯一刺眼的原因是颜色：漏出来的是白。改成外框色
+ * 之后，最坏情况不过是那圈 2px 深色边框在某一侧宽了一个物理像素，看不出来。
+ *
+ * 只作用于对局态：胜利态要继续用板底白托住那幅画（深色场景四周镶一圈深色同样难看，
+ * 理由见下方 .won 的注释）；拿不到 2d 上下文退回 DOM 画法时也不挂这个类。
+ */
+.canvasPainted {
+  background: var(--color-board-frame);
+}
+
+/*
+ * canvas 接管像素后，格子不再自己上色、不再排版 ×，也不跑那条背景过渡——
+ * 落子的 100ms 淡入已经在绘制循环里重做了一遍。这些活留着是纯白做：
+ * 它们全被上面那张不透明的 canvas 盖着。
+ *
+ * 胜利态不套这条规则：那时 canvas 换成 RevealCanvas，而 DOM 格子要继续充当
+ * 拿不到 2d 上下文时的终态兜底（见 .domFallback）。
+ */
+.canvasPainted .cell {
+  background: transparent;
+  color: transparent;
+  transition: none;
+}
+
+.gridLines {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/*
+ * 半透明深色线。曾在 v1.5.0 改成不透明的 #808184（想消掉半透明线压不同底色时的
+ * 沿途变色），实测有问题，已回退——这个方案不要再试第二次。
+ */
+.gridLine {
+  stroke: var(--color-grid-line);
+  stroke-width: var(--grid-line-normal-width);
+}
+
+.gridLineStrong {
+  stroke: var(--color-grid-line-strong);
+  stroke-width: var(--grid-line-major-width);
+}
+
+.filled {
+  background: var(--color-fill);
+}
+
+.marked {
+  background: var(--color-surface);
+}
+
+.empty.highlighted,
+.marked.highlighted {
+  background: var(--color-accent-soft);
+}
+
+/*
+ * 键盘光标层。与提示层同一个高度（压住盘面 canvas、低于揭晓画面），
+ * 但它只在棋盘拿着键盘焦点时才存在，两者不会同时争同一格的观感。
+ */
+.cursorLayer {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+}
+
+/*
+ * 两圈框，由内外两条 inset 阴影画成：外圈贴着格边用板底色，内圈才是主色。
+ *
+ * 只画一圈主色的话，落在已填充的深色格上几乎看不见——而键盘玩家恰恰要在
+ * 涂过的格子之间走位。一浅一深两条边任何底色下都至少有一条能看出来。
+ * 用 box-shadow 不用 outline：outline 画在盒子外面，相邻两格会互相压住。
+ */
+.cursorCell {
+  position: absolute;
+  border-radius: 2px;
+  box-shadow:
+    inset 0 0 0 2px var(--color-surface),
+    inset 0 0 0 4px var(--color-accent);
+}
+
+/*
+ * 提示高亮层（结构与理由见 HintOverlay.tsx）。整层只有 opacity 与 transform 在动。
+ */
+.hintLayer {
+  position: absolute;
+  /* 高于 .boardCanvas(1)，低于 .revealCanvas(3) */
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hintLayer > div {
+  position: absolute;
+}
+
+/*
+ * 被指出来的那一行/那一列：一层很淡的主色，**不呼吸**。
+ *
+ * 试过让它一呼一吸，退了：提示是一句说完就摆在那儿的话，不是通知。
+ * 亮度反复变化会一直把视线往回拽，而玩家此刻正需要盯着这条线自己算，
+ * 底下的东西不该动。稳定的低强度高亮既指得清楚，又不抢他的注意力。
+ */
+.hintBand {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(var(--color-accent-rgb), 0.16);
+}
+
+/*
+ * 这句提示真正说到的那几格，压得比整条线重一档——「看这条线」与
+ * 「说的是这几格」是两件事，只给前者等于让玩家在一片蓝里自己找。
+ *
+ * 涂和叉画法必须不同：一个实心块、一个空心框。都画成实心的话，
+ * 「这几格是空的」会被读成「填这几格」——提示越清楚，这种误读的代价越大。
+ */
+.hintCell {
+  background: rgba(var(--color-accent-rgb), 0.34);
+}
+
+.hintCell[data-state='marked'] {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px rgba(var(--color-accent-rgb), 0.42);
+}
+
+/*
+ * 教程用的呼吸叉：比空心框多一层真的 X 形状——新手第一次见叉子，
+ * 光画个空心框根本不知道那是什么意思。两条线用 ::before/::after 画，
+ * 父元素上跑一个呼吸动画控制 color，线条的 background: currentColor 跟着走。
+ */
+.hintCell[data-state='ghostMark'] {
+  background: transparent;
+  color: rgba(var(--color-accent-rgb), 0.55);
+  animation: ghostMarkBreath 1.6s ease-in-out infinite;
+}
+
+.hintCell[data-state='ghostMark']::before,
+.hintCell[data-state='ghostMark']::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 52%;
+  height: 2.5px;
+  background: currentColor;
+  border-radius: 1.5px;
+}
+
+.hintCell[data-state='ghostMark']::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.hintCell[data-state='ghostMark']::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+@keyframes ghostMarkBreath {
+  0%,
+  100% {
+    color: rgba(var(--color-accent-rgb), 0.25);
+  }
+  50% {
+    color: rgba(var(--color-accent-rgb), 0.7);
+  }
+}
+
+/*
+ * 幽灵条：这一段线索最左能摆到哪、最右能摆到哪。
+ * 停—走—停地来回两趟，走完就散——它是句话，不是常驻的装饰。
+ *
+ * 时长与趟数开成变量，是给新手教学用的：那边一页要连着讲好几手，
+ * 每一手都来回两趟就成了等动画，所以教程调成一趟、走得也更快
+ * （见 Tutorial.module.css）。实战里默认值不变——那时玩家是卡住的人，
+ * 他需要的是把这句话讲够两遍。
+ */
+.hintGhost {
+  border-radius: 3px;
+  background: rgba(var(--color-accent-rgb), 0.42);
+  animation: hintGhostSlide var(--hint-ghost-duration, 2.4s) ease-in-out
+    var(--hint-ghost-repeat, 2) both;
+}
+
+/* 第二次追问时锁定的那一格：两条线的交点，画一圈实框。同样不闪不呼吸。 */
+.hintFocus {
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+
+/*
+ * 停在最左 → 滑到最右 → 停住 → 散掉。两头的停顿是这段动画的全部意义所在：
+ * 玩家要看清的是「两种极端摆法各自在哪」，中间那一段位移只是把两者连起来。
+ */
+@keyframes hintGhostSlide {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  8%,
+  28% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  62%,
+  85% {
+    opacity: 1;
+    transform: translate(var(--hint-travel), 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--hint-travel), 0);
+  }
+}
+
+.hintGhost[data-orientation='col'] {
+  animation-name: hintGhostSlideCol;
+}
+
+@keyframes hintGhostSlideCol {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  8%,
+  28% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  62%,
+  85% {
+    opacity: 1;
+    transform: translate(0, var(--hint-travel));
+  }
+  100% {
+    opacity: 0;
+    transform: translate(0, var(--hint-travel));
+  }
+}
+
+/*
+ * 降低动态效果：高亮本来就是静的，这里只把唯一会动的幽灵条收掉。
+ * 提示的信息量一点没少——重叠区仍然亮着，只是不再演示它怎么来的。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .hintGhost {
+    display: none;
+  }
+
+  .hintCell[data-state='ghostMark'] {
+    animation: none;
+    color: rgba(var(--color-accent-rgb), 0.55);
+  }
+}
+
+/* 揭晓动画层：整段动画由 RevealCanvas 在一张 canvas 上画完，DOM 不参与逐格动画 */
+.revealCanvas {
+  --reveal-overscan: 0px;
+  position: absolute;
+  z-index: 3;
+  display: block;
+  top: 0;
+  left: 0;
+  /*
+   * 右、下各多铺一个物理像素，填掉 WebKit 分层取整留下的白边；父级 .won
+   * 已有 overflow:hidden 与圆角裁切，所以画布不会真的凸出成品边界。
+   *
+   * 往上、往左铺没有用，别再试了：那两边的缝不是画布短了一截，而是圆角裁切
+   * 按整像素取、格子背景带抗锯齿，两者对不上（成因与实测见下面 .revealed 那条）。
+   * 裁切先一步把多铺的部分切掉，所以铺多少都到不了那一行。
+   */
+  width: calc(100% + var(--reveal-overscan));
+  height: calc(100% + var(--reveal-overscan));
+  pointer-events: none;
+}
+
+/*
+ * 胜利瞬间：交互态归位、× 撤下，格子保持对局态配色不动。
+ * 此刻起画面由上方的 canvas 接管，未轮到的格子透出这里的 DOM 外观。
+ *
+ * 撤 × 和撤网格线一样必须是瞬时的、不经过渡：终态里但凡还剩一笔棋盘痕迹，
+ * 都会把画切碎；而任何靠过渡去清除的东西，都可能因为过渡没跑而留在画上。
+ */
+/*
+ * 那圈近黑的外框随网格线一起撤下：终态是一幅完整的画，不该再被棋盘裱起来。
+ * 撤法同样是瞬时的、不经过渡——终态里但凡还剩一笔棋盘痕迹都会破坏那张画。
+ *
+ * 撤的是宽度而不是颜色：改成 transparent 的话，那 2px 带子会露出板底的
+ * --color-surface，深色场景（星空一类）四周就镶了一圈白。改宽度则连带子本身都没有。
+ *
+ * 这不会让画跳位：盒子居中，border-box 左右各缩 2px，内容盒的起点
+ * (W − content)/2 恰好不变，225 个格子一个像素都不动；同理纵向。
+ * canvas 铺的是内容盒，因此它自动就等于整幅画的范围。
+ */
+.won {
+  border-width: 0;
+  /* 正常态外框收走后，内容区域保持同一条 size × cell-size 的边长。 */
+  width: var(--board-content-extent);
+  height: var(--board-content-extent);
+  /*
+   * 直角一并磨圆。撤掉外框是为了让它成为一幅画，但 90° 的硬角本身仍在说
+   * 「这是个棋盘」——磨圆那一下才真的换了身份。圆角要吃到画上，
+   * 而画由内部铺满的 canvas 呈现，所以得靠这里裁。
+   */
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.won .cell {
+  background: var(--color-surface);
+  transition: none;
+}
+
+.won .filled {
+  background: var(--color-fill);
+}
+
+/*
+ * 落幕之后把底下那层 DOM 的颜色整个撤掉。
+ *
+ * 揭晓期间这两条颜色是有用的：还没轮到的格子透出对局态的样子，波扫到哪儿
+ * canvas 就盖到哪儿。可落幕之后每一格都被盖住了，它们只剩下一个作用——
+ * 从裁切的取整缝里漏出来。
+ *
+ * 那条缝是这么来的（2026-09-09 在 iPhone 17 Pro 模拟器、DPR 3 上逐像素量的）：
+ * .won 的上沿落在某个物理像素的六成处，格子的背景是**带抗锯齿**画的，于是那一行
+ * 有三成七的覆盖；而 overflow:hidden 的圆角裁切是**按整像素**取的，canvas 被
+ * 齐齐切在下一行。结果就是画的上沿多出一行一像素高的棋盘：填过的格子透出深藏青、
+ * 没填的透出白，正好照着解答的轮廓一格深一格浅。往上多铺画布填不平——
+ * 裁切先一步把多铺的部分切掉了，能治的只有让底下那层别再有颜色。
+ *
+ * 撤的是颜色不是元素：格子还在，无障碍读到的仍是整盘的行列状态。
+ * 拿不到 2d 上下文那条路（.domFallback）不能撤——那时画就在这些格子上。
+ */
+.revealed:not(.domFallback),
+.revealed:not(.domFallback) .cell {
+  background: transparent;
+}
+
+/*
+ * 第二道锁：终态里绝不允许出现网格线。
+ * 正常路径是胜利即整体不渲染（见 GameBoard），这条规则并不参与那条路径；
+ * 它保证的是——万一将来有谁把网格线重新挂回胜利态，或者某条分支漏了那个判断，
+ * 那幅画也不会再被切碎。这个不变量值得用两种独立机制各锁一次。
+ */
+.won .gridLines {
+  display: none;
+}
+
+.won .marked {
+  color: transparent;
+}
+
+/*
+ * 兜底终态：只在拿不到 2d 上下文、画面交回 DOM 时才生效（.domFallback 由
+ * GameBoard 在 RevealCanvas 报告不可用时挂上）。这套颜色与 canvas 最后一帧
+ * 完全一致，交接时不会闪。
+ *
+ * 正常路径下不挂这个类，是因为它会在落幕那一帧改写 size² 个格子的背景——
+ * 而那一帧正是整段结算最挤的时候（解锁字样浮现、棋盘上移、结算卡准备升起），
+ * 且这些格子全被不透明的 canvas 盖着，重算与重绘纯属白做。
+ */
+.domFallback.revealed .cell {
+  background: var(--scene-color, var(--color-surface));
+}
+
+.domFallback.revealed .filled {
+  background: var(--reveal-color, var(--color-fill));
+}
+
+/*
+ * 收尾：最后一格落位后整张画轻轻吸一口气，并落上一层柔和投影。
+ * 从前波扫完就地僵住，缺一个收束动作，高潮结束得很突兀。
+ * 幅度压到 1.025 并且只做一次，不与庆祝态挂在 .layout 上的平移冲突。
+ *
+ * 这口气要吸得比原来更缓（0.52s → 0.74s）：它是整段结算的第一拍，
+ * 后面的解锁字样、棋盘上移、结算卡依次跟上（时序见 Game.module.css
+ * 与 winTiming.ts）。第一拍太急，后面几拍再慢也追不回从容。
+ *
+ * 吸气只动 transform，投影是静态的。从前关键帧里还插值 box-shadow
+ * （none → float → card），而阴影属于绘制属性、不可合成：等于让这块装着
+ * 225 个格子和一张 canvas 的元素连续重绘 0.74 秒，而这 0.74 秒恰好压在
+ * 解锁字样浮现、棋盘上移的同一段时间里。代价是没有了「阴影跟着浮起来」
+ * 那一点层次——按「流畅优先于特效」取舍掉。
+ */
+.revealed {
+  box-shadow: var(--shadow-card);
+  animation: boardSettle 0.74s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/*
+ * boardSettle 跑完时这一层同样会被降级重光栅，掉一帧。和 .layout、.backdrop
+ * 一起钉住——data-holding-layers 挂在 Game 的根节点上，由那边统一撤下，
+ * 理由与实测见 Game.module.css。
+ */
+[data-holding-layers='true'] .revealed {
+  will-change: transform;
+}
+
+@keyframes boardSettle {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.025);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .revealed {
+    animation: none;
+  }
+}

@@ -1,0 +1,1731 @@
+/* 首页一屏布局：紧凑入口释放的空间优先分给标题上下，收藏区与入口保持相邻。
+   安全区和矮屏下限仍分别处理，缩略图窗口只按整行收缩。 */
+.page {
+  --home-edge: 20px;
+  --home-top: clamp(22px, 3.3dvh, 32px);
+  --seam-hero: clamp(12px, 1.8dvh, 20px);
+  /*
+   * 页点与「我的收藏」之间那一道缝，写成一段会伸也会缩的空白（.gapRail）。
+   *
+   * 两个数：--seam-rail 是**想要的**宽度，--seam-rail-min 是挤到头时的下限。
+   * 一屏装得下的时候它按前者取值，页点与收藏抬头各是一条独立的横带；语言换成
+   * 两行书名、或者机器只有 568 那么高时，它一路让到后者，两条横带并成一条——
+   * 让到哪一档不由这里决定，由 flex 按当时还剩多少空间算出来（--grow-rail /
+   * flex-shrink），这就是那个「按空间调间隙」的函数，只不过写在了布局引擎里。
+   *
+   * 从前这里写的是 -15px：把收藏抬头**硬拽**进页点那一行。负边距不是紧凑，
+   * 是重叠——它在任何屏幕上都拽同样多，宽屏上于是拽出一条挤在一起的带子。
+   */
+  --seam-rail: clamp(10px, 1.5dvh, 16px);
+  --seam-rail-min: 2px;
+  --seam-action-min: clamp(10px, 1.5dvh, 16px);
+  --seam-action-floor: 6px;
+  /*
+   * 一屏之内多出来的高度按份额分给三处：字标那一行、页点到收藏之间、
+   * 收藏到底部入口之间。hero 是居中的一行，它那一份于是一半落在字标上方
+   * （字标到屏幕顶），一半落在字标与主题横排之间。
+   *
+   * 页点那一道的份额最小。计数与箭头贴到右沿之后，「页点 → 我的收藏」读起来
+   * 本来就是一道分界，不必再靠一大片空白去分——那点高度给字标周围更值。
+   * 375×812 上量得这一道从 33px 收到 21px，让出来的 12px 分到字标上下各 6px。
+   */
+  --grow-hero: 1.4;
+  --grow-rail: 0.25;
+  --grow-action: 0.8;
+  --home-floor: max(clamp(26px, 3.6dvh, 40px), calc(var(--home-safe-bottom) + 12px));
+  /* 设置那一枚方块的边长：44pt 是 iPhone 的最小点击面积，图标仍是轻量的 22pt。
+     门面收成一条横栏之后它按下限取值——这一行要同时放下字标、今天那一关和它 */
+  --home-gear: 44px;
+  /*
+   * 主题卡右边露出来的那一截。
+   *
+   * 这条横排没有别的说明书说它划得动，全靠右边那张卡露出的左沿。26px 是
+   * 「一眼看得出那是另一张卡的边、又不至于占掉这一张的宽度」的下限：
+   * 再窄就只剩一条边框，看着像页面没画完。
+   */
+  --theme-peek: 26px;
+
+  --home-safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --home-safe-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+  --home-safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --home-safe-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  margin: 0 auto;
+  padding: calc(var(--home-safe-top) + var(--home-top))
+    calc(var(--home-safe-right) + var(--home-edge)) var(--home-floor)
+    calc(var(--home-safe-left) + var(--home-edge));
+  display: flex;
+  flex-direction: column;
+  /* 缝各写各的下限（--seam-*），富余各领各的份额（--grow-*）：
+     不再由 gap + space-between 平均分 */
+  justify-content: flex-start;
+  gap: 0;
+  /* 首页是一屏定死的版面：任何机型上都不该上下滑得动 */
+  overflow: hidden;
+  overscroll-behavior: none;
+  /* 纵向没有手势，不能让手指上推时把根 WebView 带出橡皮筋。
+     横向的手势只属于主题那一条，它自己声明 pan-x（见 .themeRail） */
+  touch-action: manipulation;
+}
+
+/*
+ * 页点与收藏抬头之间的弹性间隔。
+ *
+ * 富余的时候按 --seam-rail 撑开，挤的时候一路缩到 --seam-rail-min——缩到
+ * 底就是页点与收藏抬头共用一条紧凑横带。见 .page 上那一段。
+ */
+.gapRail {
+  flex: var(--grow-rail) 1 var(--seam-rail);
+  min-height: var(--seam-rail-min);
+}
+
+/* 收藏架与入口间的弹性间隔：优先让富余空间留在标题区域。 */
+.gapAction {
+  flex: var(--grow-action) 1 var(--seam-action-min);
+  min-height: var(--seam-action-floor);
+}
+
+/*
+ * 主行动那一格：手上有半局时装那条「继续这一关」，没有就是个空盒子。
+ *
+ * 空着也照样渲染——上面那道缝与底边留白因此在两种状态下完全一样，收藏架不会
+ * 因为「这局打完了」就整段往下挪半屏。
+ */
+.bottom {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── 门面 ─────────────────────────────────────────
+   一行三样：字标在左，今天那一关与设置贴右。
+
+   这一行**没有底板**。从前它是一张白牌子，牌子里再放两张浅色小卡——白底压白底，
+   两层卡片边框套在一起，谁也不比谁重要，看着就是个没做完的框。撤掉那层底板之后
+   字标直接落在页面底色上，与下面「我的收藏」的左沿对齐；这一行剩下的两样都是
+   真去处，各自的边框和厚边这才有意义。
+
+   两枚控件同高（--home-gear）：从前每日卡按内容长到 50px、设置写死 44px，
+   并排差着 6px，右上角看着像没对齐的两块补丁。 */
+
+.hero {
+  /*
+   * 富余里属于门面的那一份加在**整行**上，而这一行是居中对齐的：那一份于是
+   * 一半落在字标上方（字标到屏幕顶因此跟着一起开），一半落在字标与主题横排
+   * 之间。只把它加在下边距上的话，字标会一直贴着状态栏，越是高屏越显得挤。
+   * 不许收缩：挤的时候该让的是收藏架，不是这一行 44px 的点击面积。
+   */
+  flex: var(--grow-hero) 0 auto;
+  margin-bottom: var(--seam-hero);
+  padding: 0 2px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/*
+ * 字标：一行普通字，NONO 主题蓝、GRAM 正文色。
+ *
+ * 一个词分两色，读的还是一个词，但它不再是一行普通粗体——这是这一行唯一
+ * 不可点的东西，得靠字形自己站住。
+ *
+ * 它是这一屏字号最大的一处。从前它写成 21px，比主题卡上那行「精选合集」
+ * （19px）只大两个像素，一个人打开 App 先看见的是分类名而不是这个 App 叫什么。
+ * 现在按一行招牌来定：字号跟着宽度走，最大 36px，字重顶到 900，字距收到几乎
+ * 不留——大字撑开的字距会散成八个字母，而这一行要读成一个词。
+ *
+ * 这一行的高度仍由右边两枚 44px 的控件决定（.hero 是居中对齐的一行），
+ * 字标长到 36px 也不占新的高度，下面那条主题横排一个像素都不必让。
+ */
+.title {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: clamp(25px, 8.8vw, 36px);
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  line-height: 1.05;
+  color: var(--color-text);
+}
+
+/* 字标里那枚按钮：字号、字重、字距全从 h1 继承，看上去与一行普通字毫无二致 */
+.titleButton {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  color: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: opacity 0.1s ease;
+}
+
+.titleButton:active {
+  opacity: 0.6;
+}
+
+.titleMark {
+  color: var(--color-accent);
+}
+
+/* ── 每日挑战：一枚与设置同样大小的方块，贴在它左边 ─────
+   卡上不写状态字（已完成 / 待完成 / 未开始那一套）：首页只负责把人送到今天
+   那一关，是不是打完了，翻开日历一眼就知道。剩下两件必须说的事各自换了说法——
+   没发布或正在同步整张卡淡一档，今天已经打完了在日号右上角点一枚绿章。
+
+   「每日挑战」四个字也撤了，只留下那枚日历块。这一行要先把字标让到最大，
+   而这四个字是全行最贵的一段：52px 宽，说的又是那枚日历块本身已经说清的事
+   ——星期加日号，那就是「今天」。名字退到 aria-label 里，读屏仍旧念得出。 */
+
+.dailyCard {
+  /* 日历块就是这枚按钮本身：不再是白托盘里嵌一小块蓝色。
+     托盘那一圈白（边框 + 面 + 内缩 6px）不说任何事，只把日期挤到 32px 见方，
+     日号得写到 15.5px 才塞得下——旁边设置的齿轮是 22pt，两枚同样大的方块里
+     一枚的图形只有另一枚的三分之二重。蓝色铺满之后日号能长到 19px，这一行
+     最该被认出来的东西也就最显眼。 */
+  --daily-chip: var(--home-gear);
+  flex: 0 0 auto;
+  margin-left: auto;
+  width: var(--home-gear);
+  height: var(--home-gear);
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  box-shadow: 0 var(--press-depth) 0 var(--press-shade);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text);
+  transition: transform 0.06s ease, box-shadow 0.06s ease;
+}
+
+.dailyCard:active,
+.dailyCard[data-pressed] {
+  transform: translateY(calc(var(--press-depth) - var(--press-sunk)));
+  box-shadow: 0 var(--press-sunk) 0 var(--press-shade);
+}
+
+/* 还没发布、或正在同步：整张卡淡一档，点进去看得到原因 */
+.dailyCard[data-muted='true'] {
+  opacity: 0.55;
+}
+
+/* 日期块：星期在上、日号在下，读法与撕历一致 */
+.dateChip {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--daily-chip);
+  height: var(--daily-chip);
+  /* 圆角跟着按钮走（14px），铺满之后这两条弧是同一条 */
+  border-radius: 14px;
+  background: linear-gradient(155deg, #4a91f7, #2c6fdd);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+
+.dateWeekday {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.dateDay {
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 今天那一关已经打完了：日号右上角一枚绿章。
+ *
+ * 勾是两条边框拼的，不是字体里的 ✓——字体缺字时那个位置会掉出一个方框，
+ * 而这一枚正压在日期上，掉字比不画还糟（棋盘里的 × 踩过同一个坑）。
+ */
+.dailyDone {
+  /* 蓝色铺满按钮之后这枚章仍骑在右上角外沿，只是收了一半：整枚挪进块内会压掉
+     上面那行星期（「Wed.」被啃成「We」），骑到原来那么外面又要吃掉与设置之间
+     那 10px。压着角、露出 4px，两头都不碰。 */
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-success);
+  box-shadow: 0 0 0 2px var(--color-surface);
+}
+
+.dailyDone::after {
+  content: '';
+  position: absolute;
+  top: 3.2px;
+  left: 3.6px;
+  width: 6.5px;
+  height: 3.2px;
+  border-left: 1.7px solid #fff;
+  border-bottom: 1.7px solid #fff;
+  transform: rotate(-45deg);
+}
+
+/* ── 工具：设置与账号 ─────────────────────────────── */
+
+.tools {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/*
+ * 设置：圆角正方形，带厚边。
+ *
+ * 从前它是一枚细线方块——理由是「首页上有厚边的都是去处，设置不是去处」。
+ * 那条道理在这一屏不成立：改音效、震动、主题只有这一个入口，轻到看不见不是
+ * 克制，是藏。给厚边之后它与旁边那张每日卡是同一档立体感，右边这两样
+ * 也就是一组东西而不是两块补丁。
+ *
+ * 居中用 flex，不用 grid：iOS 16 WebKit 在 grid 里按 SVG 的**内容**固有尺寸
+ * （路径包围盒）量轨道，齿廓会偏到点击框右侧约 6pt。flex 直接对 22×22 这个盒子
+ * 居中，不碰固有尺寸那条路径，三端都不需要补偿。
+ */
+.settingsButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: var(--home-gear);
+  height: var(--home-gear);
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: var(--color-surface);
+  box-shadow: 0 var(--press-depth) 0 var(--press-shade);
+  color: var(--color-accent);
+  transition: transform 0.06s ease, box-shadow 0.06s ease, border-color 0.12s ease;
+}
+
+.settingsButton:active,
+.settingsButton[data-pressed] {
+  transform: translateY(calc(var(--press-depth) - var(--press-sunk)));
+  box-shadow: 0 var(--press-sunk) 0 var(--press-shade);
+  border-color: var(--color-accent);
+}
+
+.settingsButton > svg {
+  display: block;
+}
+
+/* 账号与设置同一档：同样的厚边圆角方块，排在设置左边 */
+.accountButton {
+  flex: 0 0 auto;
+  height: var(--home-gear);
+  padding: 0 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: var(--color-surface);
+  box-shadow: 0 var(--press-depth) 0 var(--press-shade);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  transition: transform 0.06s ease, box-shadow 0.06s ease, border-color 0.12s ease;
+}
+
+.accountButton:active,
+.accountButton[data-pressed] {
+  transform: translateY(calc(var(--press-depth) - var(--press-sunk)));
+  box-shadow: 0 var(--press-sunk) 0 var(--press-shade);
+  border-color: var(--color-accent);
+}
+
+.chevron {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  margin-left: -3px;
+  border-right: 2px solid var(--color-line-strong);
+  border-top: 2px solid var(--color-line-strong);
+  border-radius: 1px;
+  opacity: 0.34;
+  transform: rotate(45deg);
+}
+
+/* ── 主题画册 ─────────────────────────────────────
+   一张卡就是一个主题的门面，卡里直接摆着这一题的四本画册。
+
+   从前卡上只有一幅圆画和主题名：点它进主题画册页，再点一本才到选关——
+   想打一关要点三下，中间那一层除了把四本书重说一遍没有别的事做。四宫格
+   把那一层收进了首页，点哪一本直接进那一本的选关页。
+
+   卡宽压到只比一屏窄一截：右边那张露出左沿，这条横排才看得出还能划。
+   一次只露一张整卡是有意的——四宫格里每格都要认得出封面画，卡再窄一档，
+   封面就退回从前那种认不出画的小方块。 */
+
+.themes {
+  /*
+   * 只占自己那点高度，一分富余都不领，也不许被压：主题卡里是四本要点的书，
+   * 压掉的每一像素都从封面画身上出。页点下面那道缝交给紧跟着的 .gapRail，
+   * 由它去伸缩（见 .page 上那一段）。
+   */
+  flex: 0 0 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * 横排本身：左右各出血到页边，卡片因此是从屏幕边缘滑进来的，
+ * 而不是在一个比屏幕窄的框里滑——后者会让人以为右边那张卡是被裁掉的。
+ * 吸附按「卡的左沿对齐页边距」，划一下正好换一张，不会停在两张中间。
+ */
+.themeRail {
+  margin: 0 calc(-1 * var(--home-edge));
+  padding: 4px var(--home-edge) 6px;
+  display: flex;
+  gap: clamp(10px, 3.2vw, 14px);
+  list-style: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-padding-left: var(--home-edge);
+  /* 这一条是全页唯一划得动的地方；纵向仍然一格不动 */
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.themeRail::-webkit-scrollbar {
+  display: none;
+}
+
+.themeSlot {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+/*
+ * 这一条横排的每一张卡各自成一个合成层。
+ *
+ * 快速划动时 iPhone 上出现过这样一帧：上一张卡的四本书画在了这一张卡上面，
+ * 而它自己那块底板没画出来——一张卡的底与它的孩子对不上，这不可能是排版
+ * 算错的（排版算错不会让底板整块消失），只能是「这一帧还没栅格化完就上屏」。
+ *
+ * 原因是这条横排要画的东西太大：四张卡连起来 1312 × 368pt，3 倍屏下是 4.3 Mpx、
+ * 约 17MB 的位图，全部是每帧都可能重画的内容（渐变底、书脊、投影、16 张画布）。
+ * 甩一下手指，滚动比栅格化快，WebKit 只能把还没画完的瓦片先端上来。
+ *
+ * 提成合成层之后，滚动对每张卡就只是「把已经画好的那层挪个位置」，不再是
+ * 「重新画一遍」。contain: paint 是同一件事的另一半：这张卡的内容永远画不到
+ * 卡外面去，栅格化的范围也被钉死在卡这一块，上面那种「别人的书压到我头上」
+ * 从此不成立。
+ */
+/*
+ * 一张主题卡。
+ *
+ * 宽度是「页面内容宽减去露出来的那一截」：右边那张卡因此正好露出左沿一条，
+ * 这条横排不用再靠别的提示说明它划得动。卡面分两段——抬头说这是什么，
+ * 一道主题色细线之下的四宫格说里面有什么。主题色只出现在这几处（卡的一圈边、
+ * 抬头下那道线、封面外环、进度条），卡里该有颜色的是四幅封面画本身。
+ */
+.theme {
+  width: calc(100vw - 2 * var(--home-edge) - var(--home-safe-left) - var(--home-safe-right) - var(--theme-peek));
+  max-width: calc(520px - 2 * var(--home-edge) - var(--theme-peek));
+  padding: clamp(9px, 1.3dvh, 13px) clamp(10px, 3vw, 14px) clamp(10px, 1.4dvh, 14px);
+  border: 1px solid rgba(var(--group-rgb), 0.32);
+  border-radius: var(--radius-card);
+  /* 卡自己的底色比从前淡一档：四本书各有封面色之后，这张卡退成它们的托盘，
+     浓了就是两层色打架——主题的身份由那圈边、抬头下那道线和书脊说清就够 */
+  background: linear-gradient(180deg, rgba(var(--group-rgb), 0.1), var(--color-surface) 52%);
+  box-shadow: 0 var(--press-depth) 0 var(--press-shade),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  display: flex;
+  flex-direction: column;
+  color: var(--color-text);
+  /* 各自一个合成层 + 自己的画布，见上一段注释 */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  contain: paint;
+}
+
+:global(html[data-theme='dark']) .theme {
+  box-shadow: 0 var(--press-depth) 0 var(--press-shade),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/*
+ * 抬头：主题名 + 英文副名 + 这一摞要不要钱，整行也是进主题画册页的入口。
+ *
+ * 它是一行**标签**，不是这张卡的主角。从前主题名写成 19px/800，比下面四本书的
+ * 书名（13.5px）大出一半——可点一下「精选合集」只是换一层目录，点一本画册
+ * 才真的开始打关。大的那个不是要点的那个，这一屏的次序就是反的。
+ *
+ * 现在主题名退到 14px 并把字距拉开：字距宽、字号小，读起来是「这一摞叫什么」，
+ * 而不是一个跟你抢注意力的按钮。四本书的名字（16px/800）随之成为卡上最重的字。
+ */
+.themeHead {
+  width: 100%;
+  margin-bottom: clamp(7px, 1.1dvh, 11px);
+  padding: 0 1px clamp(7px, 1dvh, 10px);
+  border: 0;
+  border-bottom: 1px solid rgba(var(--group-rgb), 0.22);
+  background: none;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  color: inherit;
+  text-align: left;
+}
+
+/*
+ * 主题名。从前它右边还跟着一行英文副名，所以钉死不缩（0 0 auto）；副名撤掉之后
+ * （主题名只出当前语言，见 i18n/content）这一行只剩它和右端的角标，
+ * 就让它吃掉中间全部的宽——「Descoberta e Diversão」比「探索发现」长三倍，
+ * 不给它宽度就只能把角标挤出去。
+ *
+ * 字距对中文那四个字是舒展，对拉丁长词是白白多占一截，所以按书写系统分开给。
+ */
+.themeName {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: clamp(12.5px, 3.6vw, 14px);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: var(--color-text-muted);
+}
+
+:root:lang(de) .themeName,
+:root:lang(fr) .themeName,
+:root:lang(es) .themeName,
+:root:lang(pt-BR) .themeName,
+:root:lang(en) .themeName {
+  letter-spacing: 0.06em;
+}
+
+/*
+ * 定位角标。免费那一题写 Free，其余三题写 Full Game。
+ *
+ * 这两枚的颜色不跟主题走：它回答的是「这一摞要不要钱」，四张卡上必须是同一句话
+ * 同一个颜色，否则玩家得先认色再认字。绿＝现在就能玩，紫＝完整版。
+ */
+.themeTier {
+  flex: 0 0 auto;
+  margin-left: auto;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--tier-rgb), 0.32);
+  background: var(--color-surface);
+  font-size: clamp(9.5px, 2.7vw, 10.5px);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  color: var(--tier-color);
+}
+
+.themeHead .chevron {
+  align-self: center;
+}
+
+.theme[data-tier='free'] {
+  --tier-color: var(--color-success);
+  --tier-rgb: var(--color-success-rgb);
+}
+
+.theme[data-tier='full'] {
+  --tier-color: var(--tier-full);
+  --tier-rgb: var(--tier-full-rgb);
+}
+
+/* ── 四宫格：一格一本厚书 ─────────────────────────
+   四本画册不是四张卡片，是四本**有页数**的厚书：一整块实色的封面，
+   封面右边露出四张纸，底下压着封面纸板自己的厚度，整本立在托盘上。
+
+   这一格前后拆过四版，被否掉的三版各说明了一件事：
+
+     第一版是四枚厚边按钮加一道 6px 的色带当书脊。色带没有厚度也没有纸，
+       四本并排看着是四块瓷砖——"是本书"这句话全靠那道色带在说，太弱。
+     第二版按精装书做：脊背的明暗滚动、脊上的凸棱、封面的织纹与高光、
+       切口那一叠 1px 的纸。工艺是对的，气质错了——凸棱、织纹、烫金这些
+       是旧书的语言，做出来是一本古董书，不是一本给人玩的画册。
+     第三版把封面改成一块实色（这一条留下了），厚度却摊成了七层投影：
+       四张各自缩进一档的纸、两条纸板厚边、一层落地影。右下角摞成一段楼梯，
+       厚是够了，可那是投影堆出来的厚；书脊连同它一起被撤掉，左边空空的
+       一条边又不像一本装订好的书。
+
+   这一版三样，一样不多：**一块实色封面**、**左边一道装订的折光**、
+   **右边一叠数得出的纸**。三样都画在书自己的背景里，投影只剩落地那一层。
+   折光不是一条颜色不同的带子（那是被否掉的老派书脊），是纯粹的一道明暗：
+   最外一线暗、一道高光、一片受光、一道沟、一线回光——通行的
+   skeuomorphic book cover 就是这么画封面左沿的，只是把百分比换成像素。
+
+   这一格是全页真正的入口——点它就开始打关，点上面那行主题名只是换一层目录。
+   所以卡上最重的字是书名，封面色由 global.css 按 data-album-id 给。 */
+
+/*
+ * 兜底的封面色写在**格子上**而不是书本身：书那一格挂着 data-album-id，
+ * 它自己的色（global.css）与 .album 这条类规则特异度相同，谁写在后面谁赢——
+ * 写进 .album 就等于让模块样式把十六本各自的色全盖掉，四本书又变回一个颜色。
+ * 挂在父级则是继承，书自己的那条声明照常胜出。
+ * 新加一本书没来得及配色时，它退回主题色，仍是一张说得过去的封面。
+ */
+.albumGrid {
+  --album-rgb: var(--group-rgb);
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(8px, 2.4vw, 12px);
+}
+
+/*
+ * 书比格子窄：宽度由封面画定（见 .album 的 max-width），格子里多出来的
+ * 那点宽度留给右边那摞纸和底下的影。四本书之间因此有空气，看着是四本
+ * **摆在托盘上的书**，而不是四块拼满的瓷砖——撑满时纸的厚度被邻居压住，
+ * 这一版最想让人看见的东西就白做了。
+ */
+.albumGrid > li {
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+/*
+ * 一本书 = 一块实色封面 + 左边一道装订的折光 + 右边一叠纸。
+ *
+ * 三样都画在**书自己的背景里**，投影只剩落地那一层。上一版把厚度摊成七层
+ * 投影（四张纸 + 两条纸板 + 落地影），右下角摞成一段楼梯：厚是厚了，可那是
+ * 投影堆出来的厚。这一版书的外轮廓仍是一整块，纸在轮廓里面，一本书就是一本书。
+ *
+ * 背景层不用绝对定位的子元素还有另一层原因：按下去时卡片带着 transform 动，
+ * WebKit 会把它提成合成层，圆角裁剪对子元素随即失效——竖条的两个直角从圆角里
+ * 探出来，一按一冒，只在 iPhone 上看得见（f1a6bbd3 在旧书架上踩出来的）。
+ * 元素背景天然被自己的 border-radius 约束，没有裁剪可失效。
+ *
+ * 折光与纸叠的画法在 tokens.css（--book-fold / --book-leaves），两页共用。
+ */
+.album {
+  /* 封面画的边长。写在书上而不是写在 .albumCover 上：书的宽度是从封面画
+     反推出来的（见 max-width），两处得读同一个值 */
+  --album-cover: clamp(48px, min(22vw, 9.6dvh), 108px);
+  /*
+   * 书名那一格：几行、多大、多高。
+   *
+   * --album-title-size 是 CSS 给的基准字号；--album-title-fit 是量完之后
+   * JS 写在页面根上的共用字号（只有拉丁语系会写，见 utils/albumTitleFit）。
+   * 两者取后者优先，中日韩因此一直用基准值——它们逐本缩，缩多少写在自己
+   * 那一段字上，不动这一格的高度。
+   *
+   * 格子的高度由行数乘出来，一页之内**是同一个值**：一本名字一行、一本两行，
+   * 底下的进度杠仍然齐平。四本书并排时那条杠差半行就看得出来。
+   */
+  --album-title-size: clamp(13px, 4vw, 16px);
+  --album-title-em: var(--album-title-fit, var(--album-title-size));
+  --album-title-lines: 2;
+  --album-title-slot: calc(var(--album-title-lines) * 1.18 * var(--album-title-em));
+  /* 书里三段（封面画、书名、进度）之间的缝，以及上下的内边距 */
+  --album-gap: 5px;
+  --album-pad-y: 7px;
+  /*
+   * 封面上真正能印字的那一块，两侧各自从**装帧**起算：
+   *
+   *   左边是装订的折光（--fold-w）再加一道白边，右边是那一叠纸（--book-leaf）
+   *   再加一道白边。两道白边不一样宽（7 / 8），因为两侧让开的东西不一样。
+   *
+   * 书名和进度那一行可以把这两道白边借过来用（借到只剩 --album-title-inset
+   * 为止），但**不许再往外借**：再往外就压在折光和纸叠上了。从前这里两侧
+   * 一律借 10px，右边那 2px 正好压在纸叠上——日语「祝祭とおとぎ話」的
+   * 「話」骑在书页边上（iPhone X 实拍）。
+   */
+  --album-face-left: 7px;
+  --album-face-right: 8px;
+  --album-title-inset: 2px;
+  /* 一本书有多宽：封面画 + 左边让开折光 + 右边让开纸叠 + 两道边框 */
+  --album-width: calc(var(--album-cover) + var(--fold-w) + var(--book-leaf) + 17px);
+  /* 右边那一叠纸有多厚：一张纸 3.5px（2.5 纸 + 1 缝），12px 就是三张半。
+     跟着封面画一起伸缩——矮屏上封面缩到 50px，一叠 12px 的纸会占掉封面
+     四分之一的宽度，那不是厚，那是比例失衡 */
+  --book-leaf: clamp(9px, min(3.2vw, 1.5dvh), 13px);
+  /* 封面：一块实色。浓度是 --book-face-mix，「天空之上」那本是 100%（不掺白） */
+  --book-face: color-mix(in srgb, rgb(var(--album-rgb)) var(--book-face-mix), var(--color-raised));
+  /* 同一个色压深，用在描边与进度条上 */
+  --book-deep: color-mix(in srgb, rgb(var(--album-rgb)) 78%, #000000);
+  /* 进度杠已完成的那一段：同一个封面色兑进一个极色。浅色主题兑黑（等同
+     --book-deep），深色主题兑白——已完成的那一段永远是更实的那个，
+     两个主题各自怎么说这句话见 tokens.css 的 --book-bar-blend */
+  --book-bar: color-mix(in srgb, rgb(var(--album-rgb)) 78%, var(--book-bar-blend));
+
+  position: relative;
+  flex: 0 1 auto;
+  width: 100%;
+  /*
+   * 宽度从封面画反推：画 + 左边让开折光 + 右边让开纸叠 + 两道边框。
+   *
+   * 两侧的内边距各自从**装帧**起算，不是一个对称的数：左边是折光那 9px 再加
+   * 一点白边，右边是纸叠那一摞再加同样一点白边。从前两边都写 9px，封面画外面
+   * 那圈 4px 的白边就正好压在折光上——一本书的封面画骑在装订线上，看着不是
+   * 装帧，是印歪了。
+   */
+  max-width: var(--album-width);
+  min-width: 0;
+  /*
+   * 高度不写死，只给一个下限：一本书至少是 4:5 的竖开本。
+   *
+   * 从前这里写的是 aspect-ratio: 4 / 5——那是把高度**钉死**，装不下的名字
+   * 只能从书里溢出去，压在进度杠上（日语「祝祭とおとぎ話」折成两行时就是
+   * 这样）。名字要多少高度是量出来的（见 --album-title-slot），书跟着长，
+   * 一整页的书一起长，四本仍然一样高。
+   *
+   * 富余仍旧上下对半分（justify-content: center）：不拿「把封面画往上顶」
+   * 换空间——那样省下的是书脸上本来就该留的天头。
+   */
+  min-height: calc(var(--album-width) * 1.25);
+  padding: var(--album-pad-y) calc(var(--book-leaf) + var(--album-face-right))
+    var(--album-pad-y) calc(var(--fold-w) + var(--album-face-left));
+  border: 1px solid color-mix(in srgb, var(--book-deep) 22%, transparent);
+  /* 装订那一侧钝、翻口那一侧圆：一本书的形状，但两头都是圆的 */
+  border-radius: 4px 13px 13px 4px;
+  /* 纸叠通到上下两条边，两头由书自己的圆角去收。
+     从前它上下各缩 3px，想画的是精装书封面比书芯大一圈的飘口，画出来却是
+     一叠**方角**的纸浮在圆角的书里：两个直角戳在圆角边上，深封面（天空之上）
+     那本尤其明显。纸的两头交给圆角切，切口跟着书的外形走，才是一叠装订在
+     书里的纸 */
+  background: var(--book-fold) left top / 100% 100% no-repeat border-box,
+    var(--book-seam) right center / calc(var(--book-leaf) + 6px) 100% no-repeat border-box,
+    var(--book-block) right center / var(--book-leaf) 100% no-repeat border-box,
+    var(--book-leaves) right center / var(--book-leaf) 100% no-repeat border-box,
+    var(--book-face) border-box;
+  /* 落地那一层影，只此一层：书立在托盘上 */
+  box-shadow: 0 1px 1px rgba(31, 40, 61, 0.06), 2px 8px 13px -8px var(--shadow-tint);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--album-gap);
+  /* 深封面（天空之上）上的字要翻成浅色，其余照常 */
+  color: var(--album-ink, var(--color-text));
+  transition: transform 0.07s ease, box-shadow 0.07s ease;
+}
+
+/* 按下去是把书按到托盘上：沉一点点，影收拢 */
+.album:active,
+.album[data-pressed] {
+  transform: translateY(1px);
+  box-shadow: 0 1px 1px rgba(31, 40, 61, 0.06), 0 2px 5px -4px var(--shadow-tint);
+}
+
+/*
+ * 封面画：直接印在封面上的一幅画，不再裱白边。
+ *
+ * 白边（4px 的实心描边投影）当初是把画当成一张贴上去的贴纸，可这十六幅画
+ * 本来就是这本书封面上印的画，不是贴上去的东西；白边一圈把画和封面色隔开，
+ * 封面反倒散成了「一块色 + 一张贴纸」两层。去掉之后画直接坐在封面色上，
+ * 一本画册的封面就该是这样。圆角与尺寸都不动，只留一层很短的影托一下。
+ *
+ * 尺寸写死，一处都不留给浏览器去推：iOS WebKit 会按替换元素的**内容**固有
+ * 尺寸（画布本身只有 15×15 个像素）量格子，交给它去推的话整格塌成一小条，
+ * 从前首页的圆章与设置齿轮都踩过这个坑。所以这里既不写 aspect-ratio，也不让
+ * 画布跟着格子伸缩：--album-cover 一个值同时定死宽和高（值写在 .album 上，
+ * 书的宽度也要读它）。
+ */
+.albumCover {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--album-cover);
+  height: var(--album-cover);
+  border-radius: 7px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px -3px rgba(31, 40, 61, 0.45);
+}
+
+/*
+ * 这里曾往四边各多铺一个物理像素（--thumb-bleed），填画与封面之间那条漏白。
+ * 那条缝的根在缩略图自己身上——挂进页面的 canvas 与它的底色走两套取整；
+ * 画改成背景图之后两套并成一套，缝没有了，这一圈外铺也就不必再有
+ * （成因与实测见 Thumbnail.module.css）。
+ */
+.albumArt {
+  display: block;
+  width: var(--album-cover);
+  height: var(--album-cover);
+  aspect-ratio: auto;
+}
+
+/* 曾集齐的绶带花章；尺寸与配色由 AlbumAward 统一。 */
+.albumSeal {
+  top: 5%;
+  right: 5%;
+}
+
+/*
+ * 书名印在封面画下方。
+ *
+ * 它是这一屏上第二大的字（仅次于门面那行字标），也是四张主题卡上最重的一行——
+ * 点它就开始打关。从前它写成 13.5px，比头上那行「精选合集」（19px）小了一圈：
+ * 要点的东西比不用点的东西小，人只好一层层试过去。
+ */
+.albumName {
+  flex: 0 0 auto;
+  /*
+   * 名字用的是**整块封面脸**的宽度，不是封面画那一格的宽度：靠负边距把两侧
+   * 的白边借回来（见 .album 上的 --album-face-*）。矮屏上封面画会缩到 50px，
+   * 「好奇俱乐部」五个字按封面画的宽度收口就得截成「好奇...」——一本书的名字
+   * 被截掉半截，比它比封面画宽出几像素糟得多。
+   *
+   * 借到离折光和纸叠还剩 --album-title-inset 就停。这条线同时是「要不要缩
+   * 字号」的判据：字排到这儿还放不下，就该收字号了，而不是骑到书页上去。
+   *
+   * 高度是**定死的一格**（--album-title-slot），一页之内所有书同高：名字一行
+   * 的那本与两行的那本，底下的进度杠因此齐平。字在格子里居中，缩过字号的
+   * 那一本不会吊在格子顶上。
+   *
+   * 没有省略号。这一格宁可少一档字号也不许截字（见 utils/albumTitleFit）：
+   * 「Máquinas y herramien…」认不出是哪本书，「Máquinas y herramientas」
+   * 小半档仍然认得出。overflow 只是最后一道拦网，正常情况轮不到它出手。
+   */
+  width: calc(
+    100% + var(--album-face-left) + var(--album-face-right) - 2 * var(--album-title-inset)
+  );
+  margin-left: calc(var(--album-title-inset) - var(--album-face-left));
+  margin-right: calc(var(--album-title-inset) - var(--album-face-right));
+  height: var(--album-title-slot);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/*
+ * 格子里那段字。字号写在它身上而不是格子上：中日韩逐本缩字号时改的是这一层，
+ * 格子的高度不跟着动。
+ *
+ * hyphens: auto 在这里真的起作用：<html lang> 由 i18n 写成当前语言
+ * （见 src/i18n），浏览器据此按该语言的规则断词，「Süßwarenladen」断成
+ * 「Süßwaren-／laden」而不是硬切在中间。
+ *
+ * 但它只该管**一个词就放不下**的那一类。名字里有空格时（data-multiword）
+ * 必须关掉：贪心断行会先把第一行塞满，「Fresh Market」于是断成
+ * 「Fresh Mar-」＋「ket」（iOS 实测），而空格本来就在那儿，断成
+ * 「Fresh」＋「Market」两个词都完整。判据与理由见 utils/nameWrap.ts。
+ */
+.albumNameText {
+  display: block;
+  width: 100%;
+  font-size: var(--album-title-em);
+  /* 改这个数要一并改 utils/albumTitleFit 的 LEADING：那边按它算行数 */
+  line-height: 1.18;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+/* 名字里有空格：只在空格处折，不许在词中间加连字符（见 .albumNameText 末段） */
+.albumName[data-multiword] .albumNameText {
+  hyphens: manual;
+}
+
+/*
+ * 中日韩：一格一行，缩字号而不折行。
+ *
+ * 这些名字最长八个字，折行只能折在词的中间（「祝祭とおと／ぎ話」）——那不是
+ * 换行，是把词劈开。nowrap 把这条路堵死，装不下就只能由 albumTitleFit 收字号。
+ */
+:root:is(:lang(zh), :lang(ja), :lang(ko)) .album {
+  --album-title-lines: 1;
+}
+
+:root:is(:lang(zh), :lang(ja), :lang(ko)) .albumNameText {
+  white-space: nowrap;
+}
+
+/*
+ * 这一页的书名占几行，由 utils/albumTitleFit 量完之后写在页面根上。
+ *
+ * 它只在「缩到下限还装不下」时才比默认多一行：320×568 上封面画只有 46px 宽，
+ * 「スイーツショップ」八个片假名排一行要缩到 7px、西语的
+ * 「Máquinas y herramientas」两行要 7.5px——那已经不是字号小，是没法看了。
+ * 这一档宁可多占一行，也不许把字截掉半个。
+ *
+ * 上面那两条 :lang() 是量出来之前的样子，量完由这里接手。一页一个值：
+ * 一格的高度全页共用，只让一本变高的话，同一排书的进度杠就不齐了。
+ */
+.page[data-title-lines='1'] .album {
+  --album-title-lines: 1;
+}
+
+.page[data-title-lines='2'] .album {
+  --album-title-lines: 2;
+}
+
+.page[data-title-lines='3'] .album {
+  --album-title-lines: 3;
+}
+
+.page[data-title-lines='1'] .albumNameText {
+  white-space: nowrap;
+}
+
+.page:not([data-title-lines='1']) .albumNameText {
+  white-space: normal;
+}
+
+/*
+ * 进度：一条圆头的粗杠加右边的数字。
+ *
+ * 只写「3/28」时，两个数字要读完才知道打了多少；一条杠扫一眼就有。数字仍旧
+ * 留着——四本并排时「还差几关」是会被人真去数的，杠只给个大概。
+ * 杠比从前粗一倍（3px → 5px）：这一版整本书的线条都是钝的，一条 3px 的
+ * 细线夹在中间会显得是另一套东西画上去的。
+ */
+.albumFoot {
+  flex: 0 0 auto;
+  /*
+   * 与书名同宽，也停在同一条线上（见 .album 的 --album-face-*）。这一行上
+   * 「已集齐」那一句是九种语言里最长的东西（德语 Vollständig 55px），按封面
+   * 画那一格的宽度收口，320 上就只剩 48px——一句话被截成「Vollstä…」。
+   * 借回白边之后够用，且和书名一样不压到书页上。
+   */
+  width: calc(
+    100% + var(--album-face-left) + var(--album-face-right) - 2 * var(--album-title-inset)
+  );
+  margin-left: calc(var(--album-title-inset) - var(--album-face-left));
+  margin-right: calc(var(--album-title-inset) - var(--album-face-right));
+  min-width: 0;
+  /* 两种状态同高：没集齐是「杠 + 数字」，集齐了是一句话。高度由两者中高的那一档
+     定死，否则同一排里集齐的和没集齐的两本书会差出几像素，看着像大小不一 */
+  min-height: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.albumBar {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--album-track, var(--book-bar-track));
+  overflow: hidden;
+}
+
+.albumBarFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--album-bar, var(--book-bar));
+}
+
+.albumTally {
+  flex: 0 0 auto;
+  font-size: clamp(9.5px, 2.8vw, 11px);
+  font-weight: 800;
+  color: var(--album-ink-soft, var(--color-text-muted));
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 集齐：整行换成一句「已集齐」，杠和数字都收走。
+ *
+ * 用的是 --color-gold-rgb 那一档淡金（浅色 #c69a4a、深色 #d4aa5c），不是
+ * --color-gold 本身——本身那一档是给杠和描边用的实色，落成文字就压过了书名。
+ * 字号跟着数字那一档走（同一行不该换尺），字重比数字轻一级：这是一句结论，
+ * 不是这一格的主角，书名才是。
+ *
+ * 一行放得下就一行。320 上这一格只有 67px、字号已到 9.5px 的下界，九种语言
+ * 都是量着挑的：最宽的西语「Completado」59px、日语「コンプリート」57px，
+ * 德语因此用「Vollständig」55px 而不是「Abgeschlossen」——那一句 75px，会被
+ * 截成「Abgeschlo…」，一个截断的词比换一个词更不像话。省略号只当最后一手。
+ *
+ * 它自己就是可读的文字，读屏照常连着书名读，不必再补 aria-label。
+ */
+.albumDone {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: clamp(9.5px, 2.8vw, 11px);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgb(var(--color-gold-rgb));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 集齐一整题：整张卡镶金 */
+.theme[data-cleared='true'] {
+  border-color: rgba(var(--color-gold-rgb), 0.45);
+  background: linear-gradient(180deg, rgba(var(--color-gold-rgb), 0.14), var(--color-surface) 58%);
+  box-shadow: 0 var(--press-depth) 0 var(--press-shade-gold),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+/* 页点：这条横排唯一的说明书——一共四张，你在第几张 */
+.dots {
+  margin: clamp(3px, 0.5dvh, 6px) auto 0;
+  display: flex;
+  gap: 6px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-line);
+  transition: background-color 0.15s ease;
+}
+
+.dot[data-on='true'] {
+  background: var(--color-accent);
+}
+
+/* ── 收藏架 ───────────────────────────────────────
+   通关的回报是那张图，不是一行「已完成 3 / 602」。把最近解开的几张摆出来，
+   顺便把「还剩多少」收进同一条带子里。
+
+   区域按解锁数分档留高（0–20 两行、21–30 三行、31 起四行），再按实际分到的高度
+   只露完整行（见 .shelfSpace）；画少的时候画居中、四周是空白，不是一格格等着
+   被填的白框。没解开的关卡在这一屏上不存在。 */
+
+/* 整块都是入口：点标题、点进度、点任何一幅图都进解锁库。
+   flex 里它是唯一允许被压的一段：真遇上装不下的机器，宁可少露一行图案，
+   也不能让底部主行动被裁掉。 */
+.shelf {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  display: flex;
+  flex-direction: column;
+  /*
+   * 必须自己写一遍 stretch：iOS WebKit 的 UA 样式表给 <button> 写死了
+   * align-items: flex-start，这一列于是按孩子各自的内容宽收口。缩略图那一格
+   * 自带 width: 100% 察觉不到，抬头没写宽度就缩成了 254/335 贴在左边——
+   * 「600 / 600」和箭头跟着标题挤成一堆，右对齐当场失效（iPhone X 实拍）。
+   * Blink 与新版 WebKit 的 UA 表里没有这一条，所以只在一部分机器上看得见。
+   */
+  align-items: stretch;
+  color: inherit;
+  text-align: left;
+  transition: transform 0.06s ease;
+}
+
+.shelf:active,
+.shelf[data-pressed] {
+  transform: scale(0.99);
+}
+
+.shelfHead {
+  flex: 0 0 auto;
+  /* 与 .shelf 的 align-items 是同一件事的两道保险，理由见那一段 */
+  width: 100%;
+  margin: 0 0 10px;
+  padding: 0 2px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.shelfHead .tally {
+  margin-left: auto;
+}
+
+.shelfChevron {
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--color-line-strong);
+  border-top: 2px solid var(--color-line-strong);
+  border-radius: 1px;
+  opacity: 0.34;
+  transform: rotate(45deg);
+}
+
+.shelfTitle {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--color-text);
+}
+
+/* 一幅都没有时窗口里只有这一句：竖着坐在两行高的空区域正中，横着仍与抬头左对齐 */
+.shelfHint {
+  display: block;
+  justify-self: start;
+  margin: 0 2px;
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+
+/*
+ * 抬头下方的可用空间。
+ *
+ * 以"这么多关该有的档位"（--shelf-tier-rows）为理想高度参与 flex 收缩：
+ * 宽高比按十列铺满估、max-height 按格子上限封顶，两头夹出来的就是档位行数 ×
+ * 格边长（与 shelfHeight 只差不到一个像素——宽高比算不进那几条缝，差的那一点
+ * 留在窗口下方，不进画里）。内部真正的画墙（.shelfWindow）才按量得的完整行数变化。
+ * 两层分开后行数不会反过来改变测量基准：长文案时能缩到三行，换回短文案后也能
+ * 自动扩回四行。
+ *
+ * 这里的四个变量（--shelf-max-columns / --shelf-cell-max / --shelf-gap /
+ * --shelf-cell）全由 LevelSelect.tsx 从 shelfLayout.ts 写进来，CSS 只做加法。
+ */
+.shelfSpace {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  aspect-ratio: calc(var(--shelf-max-columns) / var(--shelf-tier-rows));
+  max-height: calc(
+    var(--shelf-tier-rows) * var(--shelf-cell-max) + (var(--shelf-tier-rows) - 1) * var(--shelf-gap)
+  );
+  overflow: hidden;
+  display: grid;
+  place-items: start center;
+}
+
+/*
+ * 两行是首页的常态基线：高屏上按 2 × 40px + 1px 留高，让前 16 幅画保持
+ * 40px。它仍是可收缩的 flex 项；矮屏分不到 81px 时会继续按完整行降级。
+ */
+.shelfSpace[data-tier-rows='2'] {
+  height: calc(2 * var(--shelf-cell-max) + var(--shelf-gap));
+  aspect-ratio: auto;
+}
+
+/*
+ * 窗口占满收藏区，真正的画墙在里面横竖居中。这样 1 幅 40px 的画和
+ * 20 幅缩到十列的画虽然本体高度不同，0–20 幅的首页版式仍始终占同一块高度。
+ */
+.shelfWindow {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+@media (max-height: 720px) {
+  /*
+   * 同一档上，几道缝与底边留白一并收紧。
+   *
+   * 667 这一档没有富余：量得四段内容加起来只给缝和留白剩 47px，老版式把它分成
+   * 11.6×3 + 9.3，正好一格不裁地铺完三行画。所以这一档不能照高屏那套写——
+   * 底边留白按 26 起跳的话，多出来的 22px 只能从收藏架身上拿，而收藏架一压
+   * 就是半格缩略图露在窗口边上（要压就压整行，道理见上面那段注释）。
+   *
+   * 于是这一档自己重定一套：三道缝各让一两个像素，换来底边留白从 9.3 抬到 14。
+   * 抬得不多，但方向对，而且一行画都没少。真正的富余要到 720 以上才有。
+   */
+  .page {
+    /* 顶上那一段退回与左右同宽：这一档没有富余，多留一个像素就得从画里剪一格 */
+    --home-top: var(--home-edge);
+    --seam-hero: 10px;
+    --seam-rail: 9px;
+    --seam-action-min: 11px;
+    --home-floor: max(14px, calc(var(--home-safe-bottom) + 10px));
+  }
+
+  /* 书里那几道缝跟着收：让出来的是空白，不是封面画 */
+  .album {
+    --album-pad-y: 4px;
+    --album-gap: 3px;
+  }
+}
+
+@media (max-height: 620px) {
+  /*
+   * 568 这一档一点余量都没有：老版式在这儿三道缝已经全按下限 9px 取值、
+   * 底边留白 8px，收藏架仍要被裁掉 1px 才铺得下。所以这一档不谈"给底边多留些"
+   * ——多留的每一个像素都得从那两行画里剪，剪的还是半格。
+   *
+   * 这里只做一件事：把上面 720 那一档的收紧再往回退一档，让总量落回老版式的
+   * 水平（缝 9/8/9、留白 10），一格不裁。页点与收藏架之间那道仍是全页最窄的，
+   * 主题横排与页点的关系在这一档同样读得出来。
+   */
+  .page {
+    --home-top: var(--home-edge);
+    --seam-hero: 9px;
+    --seam-rail: 8px;
+    --seam-action-min: 9px;
+    --home-floor: max(10px, calc(var(--home-safe-bottom) + 8px));
+    --home-top: 16px;
+  }
+}
+
+/*
+ * 画墙本体：列数由 shelfLayout 算好，格边长由 shelfDisplayCell 在区域里取得。
+ * 宽度 = 列数 × 格 + 列间的缝；十列时正好等于窗口宽，少于十列时比窗口窄一圈，
+ * 由 .shelfWindow 的居中收边。两行档的前 16 幅尽量保留 40px；横向或纵向装不下时
+ * 才缩小，三、四行档则继续用十列基准尺寸。
+ */
+.shelfGrid {
+  --collection-columns: var(--shelf-cols);
+  width: calc(
+    var(--shelf-cols) * var(--shelf-cell, var(--shelf-cell-max)) +
+      (var(--shelf-cols) - 1) * var(--shelf-gap)
+  );
+}
+
+/* 总进度：圆角方框，底色就是进度条，省掉单独一条细线 */
+.tally {
+  position: relative;
+  overflow: hidden;
+  padding: 4px 11px;
+  border-radius: 8px;
+  background: var(--color-line);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tallyFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--color-accent-soft);
+}
+
+.tallyText {
+  position: relative;
+}
+
+.tallyText b {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--color-accent);
+}
+
+/* ── 底部：接着上一局 ─────────────────────────────
+   从前这里是一条「开始游戏」：库里 602 关，它落在哪一关只有代码知道，点下去
+   之前不知道要去哪本书；全部通关后弹出的那张随机选关面板更是连册都不认。
+   两样一起撤掉——首页不替人挑关，挑关是画册那一层的事。
+
+   剩下的这一条只在手上真有半局时出现，卡上写清是哪一本、第几关，宽屏附带用时，
+   **不写画名**：那是通关才揭晓的东西，写在按钮上等于提前拆了盒子。 */
+
+/* 去处那一行：册名 · 第 n 关 · 用时。册名最长，挤不下时先截它 */
+.resumeMeta {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.resumeAlbum {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.resumeDot {
+  flex: 0 0 auto;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.resumeTime {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+@media (hover: hover) {
+  .settingsButton:hover,
+  .accountButton:hover {
+    border-color: var(--color-accent);
+    background: var(--color-accent-soft);
+  }
+
+  /* 没有边框可点亮了：整枚亮一档 */
+  .dailyCard:hover .dateChip {
+    filter: brightness(1.08);
+  }
+
+  .theme:hover {
+    border-color: rgba(var(--group-rgb), 0.62);
+  }
+
+}
+
+/*
+ * 568 那一档：每一段都让出几像素。
+ *
+ * 一张牌子加一条主题卡加一面画墙加主行动同时要装进 568，让出得最多的是
+ * 不承载信息的那些空白：门面的内边距、四宫格里封面画的上限。
+ */
+@media (max-height: 620px) {
+  .theme {
+    padding-top: 7px;
+  }
+
+  /* 封面画一缩，封面就窄了一圈：书名的基准跟着退一档 */
+  .album {
+    --album-cover: clamp(38px, min(18vw, 8.2dvh), 62px);
+    --album-title-size: clamp(11px, 3.4vw, 13px);
+  }
+
+  .albumGrid {
+    row-gap: 6px;
+  }
+}
+
+/*
+ * 320pt 那一档：门面这一行只把两道缝收紧。
+ *
+ * 从前这里让的是每日卡那三处余量（日期块小一号、字小半档、间距收紧）——那时
+ * 它还带着「每日挑战」四个字，一行要放的东西比现在宽 60px。字撤掉之后，
+ * 右边两枚各 44px 的方块加起来才 95px，字标按 8.8vw 取值也只有 28px，
+ * 这一行本来就装得下，剩下的只是让缝别顶到边。
+ */
+@media (max-width: 340px) {
+  .hero {
+    gap: 7px;
+  }
+
+  /*
+   * 320 上按 8.8vw 取值正好差 0.3px，字标末尾会掉出一个省略号——App 的名字
+   * 被截掉半个字母比小一号糟得多。这一档退到 8.1vw。
+   *
+   * 这条线是量出来的：NONOGRAM 这八个字母连同字距，宽度恒是字号的 6.19 倍；
+   * 这一行留给字标的宽度是「页宽 − 40 页边 − 4 门面内边距 − 88 两枚控件 − 14 两道缝」，
+   * 320 上是 174px，除以 6.19 得 28.1px 的上限。8.1vw 在 320 上是 25.9px，留了 14px 余量
+   * 给字体在别的机器上略宽一点的那种情况。
+   */
+  .title {
+    font-size: 8.1vw;
+  }
+}
+
+/*
+ * 320pt 那一档：一张卡窄了 55px，抬头那一行先让出英文副名。
+ *
+ * 三样里它最不承载信息——中文那四个字才是主题名，英文只是给卡面添一层质地。
+ * 挤着放的话它会被截成半个词，那比不出现更糟。
+ */
+@media (max-width: 340px) {
+  .themeName {
+    letter-spacing: 0.1em;
+  }
+
+  .themeTier {
+    gap: 3px;
+    padding: 2px 6px;
+    letter-spacing: 0;
+  }
+
+  /*
+   * 320 上封面脸只有 58px，「Completado」按 9.5px 排是 61px——一句话被截成
+   * 「Completad…」。退半档字号并把字距收掉，量下来 56px，九种语言都装得下。
+   */
+  .albumDone {
+    font-size: 9px;
+    letter-spacing: 0;
+  }
+}
+
+/* 手机单行入口优先展示册名和关号，用时在宽屏保留。 */
+@media (max-width: 400px) {
+  .resumeTime,
+  .resumeDot:has(+ .resumeTime) {
+    display: none;
+  }
+}
+
+.learnLink { min-height: 44px; padding: 8px; color: var(--color-accent); background: transparent; border: 0; font: inherit; font-size: 13px; font-weight: 700; }
+
+/* ── 试玩版：四本精选合集 ─────────────────
+   网页试玩（`--mode demo`，见 config/demo.ts）的首页中段。竖屏是一张卡：借主题卡的
+   托盘（.theme）与四宫格（.albumGrid / .album），抬头换成「4 本精选合集 · 24 关」，
+   两行两列，点一本翻开册页。宽屏（横着的、640px 起：手机横过来、平板、桌面浏览器）
+   不翻页：四本横排成一列书，选中的那本抬起来，它的六关直接摊在下面的面板里。
+
+   正式版首页没有宽屏这一档（两端锁竖屏），这些规则全挂在 [data-demo] 下面，
+   一条都不碰正式版的版式。 */
+
+/* 设置那一枚钉在右上角：字标在左，中间空着 */
+.hero[data-demo] .tools {
+  margin-left: auto;
+}
+
+.themes[data-demo] {
+  width: 100%;
+}
+
+.demoCard {
+  width: 100%;
+  max-width: none;
+}
+
+/* 抬头：「4 本精选合集」与「24 关」并成一句，中间一枚点 */
+.themeHead[data-demo] {
+  cursor: default;
+  gap: 0;
+}
+
+.demoSubtitle,
+.demoTagline {
+  display: inline-flex;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.demoSubtitle .themeName,
+.demoTagline .themeName {
+  flex: 0 1 auto;
+}
+
+.demoMeta {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: baseline;
+  font-size: clamp(12.5px, 3.6vw, 14px);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.demoMeta::before {
+  content: '·';
+  margin: 0 0.5em;
+  font-weight: 800;
+  color: rgba(var(--group-rgb, var(--color-accent-rgb)), 0.7);
+}
+
+/*
+ * 竖屏：两行两列，封面比正式版的四宫格大一档。
+ *
+ * 正式版那张卡下面还压着收藏架与页点，封面只能给到 9.6dvh；试玩版这张卡是
+ * 页上唯一的内容，同一块高度可以让封面长到 13dvh。宽度那一头按 28vw 封顶：
+ * 375 宽上两本书（各 105 + 39 的装帧）加中缝正好落在托盘内。
+ */
+.demoGrid .album {
+  --album-cover: clamp(48px, min(28vw, 13dvh), 128px);
+}
+
+/*
+ * 书名底下那行「5×5」：这一本是几乘几的棋盘（试玩版一本只有一种，见 AlbumTile）。
+ *
+ * 字比进度那行还小一号，墨与书名同一色（灰的那档试过，被否——它是书名的一部分，
+ * 不是注脚）；深封面（天空之上）上跟着 --album-ink 一起翻浅。字距放开一点，
+ * 三个字符才不会缩成一团。
+ */
+.albumSize {
+  flex: 0 0 auto;
+  margin-top: -2px;
+  font-size: clamp(10px, 2.9vw, 11.5px);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--album-ink, var(--color-text));
+}
+
+/* 竖屏：字标与它底下那行副题摞成一列，一起占字标那一格 */
+.titleStack {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.demoSubtitle {
+  padding-left: 2px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.demoSubtitle .themeName,
+.demoSubtitle .demoMeta {
+  font-size: clamp(11.5px, 3.2vw, 13px);
+}
+
+/* 宽屏字标后面那句副题：与字标同一条基线，字号跟主题名那档 */
+.demoTagline {
+  flex: 0 1 auto;
+  margin-left: 14px;
+  align-self: center;
+  padding-top: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.demoTagline .themeName,
+.demoTagline .demoMeta {
+  font-size: 13px;
+}
+
+.demoTagline .demoMeta::before {
+  color: rgba(var(--color-accent-rgb, 59, 130, 246), 0.6);
+}
+
+/* ── 宽屏：一列书 + 一块面板 ─────────────────
+   这一段领走字标以下的全部高度，但书架与面板都按内容取高：富余均分在书架上方、
+   书架与面板之间、面板下方三处（space-evenly），字标、书架、关卡三行于是大致
+   平分整页，而不是面板一块独大。书架不许被压；装不下时面板收缩、正文自己滚。 */
+.themes[data-wide] {
+  flex: 1 1 auto;
+  min-height: 0;
+  justify-content: space-evenly;
+  gap: 0;
+}
+
+.demoShelf {
+  --album-rgb: var(--color-accent-rgb, 59, 130, 246);
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
+  gap: clamp(12px, 2.4vw, 26px);
+  padding: 6px 0 2px;
+}
+
+.demoShelf > li {
+  flex: 0 0 auto;
+}
+
+/* 书架上的书：首页的主角，跟着窗口长得比面板里的关卡卡快（8.5vw 对 6.8vw），
+   1280×720 上封面 109px、1440×900 上 122px，封顶 124。
+   封面长的时候书名、尺寸、进度那几行**跟着一起长**（都按 vw），书才是整本一起放大；
+   只放封面画不放字，全屏上就是一幅大画底下压着几行小字（封顶 150 那版被否）。 */
+.demoShelf .album {
+  --album-cover: clamp(56px, min(8.5vw, 18dvh), 124px);
+  --album-title-size: clamp(12px, 1.5vw, 17px);
+  --album-pad-y: clamp(6px, 0.7vw, 10px);
+  --album-gap: clamp(4px, 0.45vw, 7px);
+  cursor: pointer;
+  opacity: 0.86;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+}
+
+.demoShelf .albumSize {
+  font-size: clamp(10px, 1vw, 13px);
+}
+
+.demoShelf .albumTally,
+.demoShelf .albumDone {
+  font-size: clamp(9.5px, 0.95vw, 12.5px);
+}
+
+.demoShelf .albumFoot {
+  min-height: clamp(15px, 1.3vw, 19px);
+}
+
+/* 选中的那本抬起来、亮起来，底下压一道自己的封面色 */
+.demoShelf .album[data-selected] {
+  opacity: 1;
+  transform: translateY(-4px);
+  box-shadow: 0 1px 1px rgba(31, 40, 61, 0.06), 0 10px 18px -10px var(--shadow-tint),
+    0 0 0 2px color-mix(in srgb, rgb(var(--album-rgb)) 55%, transparent);
+}
+
+.demoShelf .album[data-selected]::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -11px;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 7px solid color-mix(in srgb, rgb(var(--album-rgb)) 55%, transparent);
+}
+
+@media (hover: hover) {
+  .demoShelf .album:not([data-selected]):hover {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+/*
+ * 摊开的那一本：面板底色从它自己的封面色淡下去——甜品店是粉的，深蓝之海是蓝的。
+ *
+ * --album-rgb 由 global.css 按 data-album-id 给，这里**不写兜底**：兜底写在这条
+ * 模块规则上会压过 global.css 那条（同为一个属性选择器的分量，模块样式排在后面），
+ * 四本面板就全成了主题蓝。
+ *
+ * 是一道从天头淡下去的渐变，不是整块染色：整块兑 14% 试过，四本面板各自一大块
+ * 浓色压在页面上，比关卡卡还抢。封面色只在天头那一带说一句「这是哪本」，
+ * 往下很快回到卡面；边、抬头下那条线、进度条读同一个色。
+ *
+ * 面板按内容取高（flex: 0 1 auto），不领富余——三行（字标、书架、关卡）的富余由
+ * .themes[data-wide] 均分；只在装不下时收缩，正文自己滚。
+ */
+.demoPanel {
+  flex: 0 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(8px, 1.6dvh, 14px) clamp(12px, 2vw, 20px) clamp(10px, 1.8dvh, 16px);
+  border: 1px solid rgba(var(--album-rgb), 0.3);
+  border-radius: var(--radius-card);
+  background: linear-gradient(180deg, rgba(var(--album-rgb), 0.12), var(--color-surface) 58%);
+  box-shadow: 0 var(--press-depth) 0 var(--press-shade), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  animation: demoPanelIn 0.22s ease-out;
+}
+
+:global(html[data-theme='dark']) .demoPanel {
+  box-shadow: 0 var(--press-depth) 0 var(--press-shade), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+@keyframes demoPanelIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demoPanel {
+    animation: none;
+  }
+}
+
+.demoPanelHead {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding-bottom: clamp(6px, 1.2dvh, 10px);
+  margin-bottom: clamp(6px, 1.2dvh, 10px);
+  border-bottom: 1px solid rgba(var(--album-rgb), 0.22);
+}
+
+.demoPanelTitle {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: clamp(16px, 2.2vw, 20px);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--color-text);
+}
+
+/* 进度靠右端，坐在从前那条「开始」的位置；抬头高度由书名那一行定死，四本一样高 */
+.demoPanelHead .tally {
+  flex: 0 0 auto;
+  margin-left: auto;
+  --color-accent-soft: color-mix(in srgb, rgb(var(--album-rgb)) 28%, var(--color-surface));
+}
+
+.demoPanelHead .tallyText b {
+  color: color-mix(in srgb, rgb(var(--album-rgb)) 78%, var(--color-text));
+}
+
+/* 面板正文：章并排（规则在 AlbumPage.module.css 的 [data-chapter-row]），装不下就自己滚 */
+.demoPanelBody {
+  /* 关卡卡的边长：比书架上的封面画小一档、长得也慢一档（6.8vw 对 9.5vw）——
+     书是这一屏的主角，面板是它翻开的那一页。最宽的一排（天空之上 2+3+1，六张卡
+     加章名与章隔）约 6.2 卡 + 200px，页宽 74vw 下任何宽度都落在页内 */
+  --demo-card: clamp(52px, min(6.8vw, 13dvh), 96px);
+  flex: 1 1 auto;
+  min-height: 0;
+  /* 竖着是 flex 列：里面那组章靠 margin-block: auto 在富余里居中，装不下时照常从顶上滚 */
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+@media (min-width: 640px) and (orientation: landscape) {
+  .page[data-demo] {
+    /*
+     * 页宽跟着窗口连续走（1024 → 760，1200 → 888，1270 起封顶 940），不在某个
+     * 宽度上跳一档：书架上的书与面板里的卡都按 vw 长，页宽也按 vw 长，拖窗口时
+     * 三样一起缩放。从前 840 / 900 两档在 1200 处跳一下，卡不动、面板忽然变宽。
+     */
+    max-width: clamp(760px, 74vw, 940px);
+    --home-top: clamp(12px, 3dvh, 22px);
+    --seam-hero: clamp(8px, 2dvh, 14px);
+    --home-floor: max(12px, calc(var(--home-safe-bottom) + 10px));
+    /*
+     * 富余全归面板。正式版把 1.4 份富余分给字标那一行是为了让竖屏上字标不贴着
+     * 状态栏；宽屏上字标一行 44px 顶天，再分给它只会在字标与书架之间拉出一片
+     * 空白（1280×720 上量得 105px），而下面的面板正缺这一截。
+     */
+    --grow-hero: 0;
+  }
+
+  /* 宽屏上底部那条不出现（行动在面板抬头上），这道缝也不必留 */
+  .page[data-demo] .gapAction {
+    display: none;
+  }
+}
+
+/*
+ * 横屏手机（高度不到 480）是唯一装不下一屏的可能：字标、书架、面板加起来若超过
+ * 屏高，页面允许竖着滚，而不是把面板裁掉。正式版首页一屏定死的规矩只在竖屏成立。
+ */
+@media (max-height: 480px) and (orientation: landscape) {
+  .page[data-demo] {
+    height: auto;
+    min-height: 100dvh;
+    overflow-y: auto;
+    overscroll-behavior: auto;
+  }
+
+  .page[data-demo] .demoPanel {
+    flex: 0 0 auto;
+  }
+
+  .page[data-demo] .demoPanelBody {
+    --demo-card: clamp(52px, min(6.8vw, 15dvh), 96px);
+    overflow: visible;
+  }
+
+  /* 矮横屏上书退回手机那档大小，三段缝各收一档：书名底下多了那行「5×5」，高度从缝里找回来 */
+  .page[data-demo] .demoShelf .album {
+    --album-cover: clamp(40px, min(8vw, 15dvh), 100px);
+    --album-pad-y: 4px;
+    --album-gap: 3px;
+  }
+}

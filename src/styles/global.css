@@ -1,0 +1,386 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+/*
+ * 整个应用都不是可读的正文，没有一处需要"选中文字"。
+ *
+ * iOS WKWebView 默认会把稍长一点的按压解释成文字选择，弹出 Copy / Translate /
+ * Share 那条菜单；一旦原生选择手势胜出，这一下点按也就被它吃掉了。从前只在
+ * 对局页关掉（Game.module.css），于是首页那些字——标题、书名、页签——一按住
+ * 就蓝一片，画册滑不动、书卡点不开。
+ *
+ * 关在根节点上，全站一次说清。不要改成 touch-action: none：设置弹窗、我的收藏
+ * 这些页面内的滚动仍然要照常工作。
+ */
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* 唯一的例外：输入框。账号弹窗里要填邮箱、粘贴验证码，选择与长按菜单必须留着，
+   iOS 上父级的 user-select: none 会一路传到 input 里，得在这里挑明拿回来。 */
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-stack);
+  -webkit-font-smoothing: antialiased;
+}
+
+/*
+ * 两层页面：当前摊开的这一层，和垫在它下面预热的上一层。
+ *
+ * 为什么上一层要**真的画出来**，而不是 display:none 藏着：真机量过一笔左缘手势
+ * 的账（见 SceneDelegate 的 [edge-back] 仪表），起手到上一页可见的 92ms 里，
+ * flush 那一段占 39ms——那 39ms 几乎全是「从 display:none 变回来」的代价：
+ * 整页重新算样式、重新排版，册页那几个 useLayoutEffect 还要各强制同步一次布局。
+ * 换成一直排着版、一直画着，起手那一下就只剩「把盖在上面的当前页摘掉」。
+ *
+ * 上一层不参与文档流（position: fixed），当前页因此照常自己撑高、自己滚动
+ * （收藏页、藏品页都比一屏长）；两层的前后由 z-index 定，与文档顺序无关。
+ * 当前页那一层显式写不透明底色：它必须把下面那一层完全盖住，一处透出来
+ * 就是两页叠影。
+ */
+.nav-layer {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--color-bg);
+  /*
+   * 常驻提升成自己的合成层。不是为了动画，是为了**起手第一帧只改一处合成器属性**
+   * （见 .nav-layer-yielded）：没有这一句，把当前层的 opacity 改成 0 就得让
+   * 根图层重新光栅一整屏，那正是真机上量到的那 45ms。
+   *
+   * 用 opacity 而不是 transform 触发提升：transform / filter / perspective 会
+   * 给固定定位的后代做包含块，页面里那些 position: fixed 的浮层会当场错位；
+   * will-change: opacity 只造层级上下文，而这一层本来就是（position + z-index）。
+   */
+  will-change: opacity;
+  /*
+   * 差这 0.1% 才是「垫在下面那一层真的被画出来」的前提。
+   *
+   * 合成器不画完全被挡住的东西。这一层要是**完全不透明**，它底下那一层就永远
+   * 只有一个空的位图——预热层排好了版、跑着 effect，可一个像素都没光栅化过。
+   * 起手把这一层交出去的那一帧，露出来的于是不是上一页，而是一块空白，要等
+   * WebKit 现画一帧才补上。iPhone Air 模拟器（1260×2736）上逐帧看得很清楚：
+   * 第一个有位移的帧左边是一条灰白空条，下一帧才是首页。iPhone X 真机看不出来，
+   * 只是因为那块屏小、那一帧画得快——不是没发生。
+   *
+   * 差这一点之后，合成器不能再断定底下被挡死，预热层于是一直保持光栅化，揭开的
+   * 那一帧就直接有像素。代价是这一层每次合成要混一次色：只发生在有改动的那块
+   * 区域上，对局期间就是棋盘那一块，量级远小于「起手现画一整屏」。
+   *
+   * 为什么是 0.999：只要「算不上完全不透明」就够了，多让一分都是白让。0.99 试过，
+   * 底下那页透上来约 1%——单看数字是 2~3/255，可它铺在整屏平色上，人眼对大面积
+   * 低对比的图案恰恰最敏感，模拟器上一眼就看见首页的书架在册页底下发灰。0.999
+   * 是 0.1%，连 8 位量化都跨不过去，截图逐像素比对不出差别。
+   *
+   * 别改回 1。一改回去，画册退首页的第一帧就又是空白——而且只在大屏机器上看得见。
+   */
+  opacity: 0.999;
+}
+
+/*
+ * 交出屏幕的那一层——左缘手势起手的第一帧，唯一改的那一处。
+ *
+ * 为什么不是「退一页」：退页要卸掉当前层、把垫底那层从 fixed 挪回文档流，一整页
+ * 重新排版重新光栅。真机（iPhone X）量下来，网页那一帧的绘制要在 activated 之后
+ * 再等 45ms 才落到屏幕上——快照早就跟着手指走了，露出来的还是刚要退掉的那一页。
+ *
+ * 这一句只改 opacity，而且改在一个已经提升好的层上：没有样式重算外溢、没有排版、
+ * 没有任何一层重画，只有一次图层属性提交。退页那一步照做，只是挪到这一帧之后
+ * （见 App.tsx 的 startCompositorReveal），那时快照已经跟着手指走了，屏幕上那
+ * 几十毫秒的重排重画一帧都看不见。
+ *
+ * pointer-events 顺手关掉：这一层已经看不见了，不该再接得住手指。这个属性不参与
+ * 绘制，改它不产生任何额外代价。
+ */
+.nav-layer-yielded {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.nav-layer-buffer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  /*
+   * 排版与绘制都关在这一层里。对局期间这一层仍会跟着进度重画（状态必须是实时的），
+   * containment 保证那点重排不会外溢去牵动正在打的那一局。
+   * Safari 15.4 才有，更早的机器上这一句被忽略，只是少一道隔离，不影响正确性。
+   */
+  contain: layout paint;
+  /*
+   * 与当前层同样提升成自己的合成层：它的位图必须在手指落下之前就**已经存在**，
+   * 而不是等当前层让开时才现画。
+   *
+   * 只有这一句还不够——被完全挡住的合成层照样不会被光栅化，那由上面那一层的
+   * opacity: 0.999 负责（见 .nav-layer）。两句缺一不可：少了这句它不是独立的层，
+   * 少了那句它是独立的层但位图是空的。
+   */
+  will-change: opacity;
+  /*
+   * 与当前层同一档不透明度——这一句管的不是「看不看得见」，是**两种状态下这一页
+   * 的像素必须一模一样**。
+   *
+   * 退一页时，同一个节点从这个类换成 .nav-layer，不透明度会从 1 跳到 0.999。
+   * 「算不算完全不透明」决定的是整棵子树怎么光栅：不透明那一档能走次像素抗锯齿、
+   * 能吃掉不透明底色那些优化，0.999 那一档不能。于是换类的那一刻整页要按另一套
+   * 规则重画一遍——版没动、内容没动，可满屏每个字的边缘都变了一遍，看上去就是
+   * 「底下那一页刷新了一帧」。
+   *
+   * 实测（iPhone Air 模拟器，把退页那一步临时推后 1.5s，单独看这一下）：
+   * 两档不同时，退页前后两帧在整页范围内有差（每个字边缘，峰值 31/255）；
+   * 两档取齐后，同一处只剩 1 个像素有差。
+   *
+   * 所以这里跟着写 0.999，不是抄，是取齐。改动其中一处就要改另一处。
+   * 它压在当前层底下，透过去的 0.1% 是同一个页面底色，看不出任何差别。
+   */
+  opacity: 0.999;
+  /* 点不着、也进不了读屏与焦点（inert 由 React 挂在同一个节点上） */
+  pointer-events: none;
+}
+
+/* 每日挑战由页面自身持有滚动，根节点只负责提供一整屏容器。
+   避免 WebView 在 body 滚动与日历横向手势之间丢失纵向滚动链。 */
+html.daily-calendar-open,
+body.daily-calendar-open {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+html.daily-calendar-open #root {
+  height: 100%;
+}
+
+/* 画册页有自己的双轴滚动容器。iOS WebView 在它横向到边后仍可能把拖动传给根
+   滚动视图，整页便会卡在左偏的橡皮筋位置；固定根视口，手势只留给画册 pager。 */
+html.album-open,
+body.album-open {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body.album-open {
+  position: fixed;
+  inset: 0;
+}
+
+html.album-open #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/*
+ * 主题识别色的唯一映射处。
+ *
+ * 首页主题卡、主题画册页的分段、画册书脊都挂 data-group，读的是 --group-color；
+ * CSS Module 只作用于类名，属性选择器照常穿透，所以这一处写完三处都有色，
+ * 将来加一个主题也只改这里。--group-rgb 是同一个色的分量，供 rgba() 自配透明度
+ * （主题卡的底、边、圆章外环、那道虚线各要一档）。
+ */
+[data-group='精选合集'] {
+  --group-color: var(--group-start);
+  --group-rgb: var(--group-start-rgb);
+}
+
+[data-group='日常生活'] {
+  --group-color: var(--group-living);
+  --group-rgb: var(--group-living-rgb);
+}
+
+[data-group='自然世界'] {
+  --group-color: var(--group-nature);
+  --group-rgb: var(--group-nature-rgb);
+}
+
+[data-group='探索发现'] {
+  --group-color: var(--group-play);
+  --group-rgb: var(--group-play-rgb);
+}
+
+/*
+ * 十六本画册各自的封面色。
+ *
+ * 主题色（上面那四个）回答的是「这是哪一摞」，四本书共用一个；这一组回答的是
+ * 「这一本是讲什么的」——甜品店是奶油粉，深蓝之海是海水蓝，天空之上是夜空的墨。
+ * 首页四宫格里每一格的封面底纹、书脊、封面外环、进度条都读它，四本并排时
+ * 一眼能分出哪本是哪本，而不是四张白纸上贴着四张小画。
+ *
+ * 只给分量不给色值：底纹要好几档透明度（越往下越淡），书脊与进度条又要满色，
+ * 一个 rgb 三元组同时供得起这两种用法。挑色的依据是封面画本身的主调，
+ * 不是书名的字面意思——底纹压在画的下面，跟画打架就成了两张皮。
+ *
+ * 深色封面（目前只有天空之上）另给三样：底纹浓度、封面上的字色、外环的白边。
+ * 那一本的封面画本来就是黑底上的一枚火箭，浅色底纹反而把它托成一块补丁。
+ */
+[data-album-id='festive-tales'] { --album-rgb: 140, 90, 166; }   /* 节日奇谭：夜宴的紫 */
+[data-album-id='sweet-shop'] { --album-rgb: 228, 117, 158; }     /* 甜品店：奶油粉 */
+[data-album-id='stage-studio'] { --album-rgb: 102, 99, 184; }    /* 琴房画室：夜场的靛 */
+[data-album-id='little-journey'] { --album-rgb: 78, 148, 214; }  /* 小小旅行：天蓝 */
+
+[data-album-id='home-sweet-home'] { --album-rgb: 176, 122, 78; } /* 居家日常：木与火的褐 */
+[data-album-id='kitchen-table'] { --album-rgb: 204, 95, 78; }    /* 厨房与爱：番茄红 */
+[data-album-id='fresh-market'] { --album-rgb: 111, 163, 72; }    /* 果蔬集市：菜叶绿 */
+[data-album-id='playtime'] { --album-rgb: 217, 144, 56; }        /* 游戏时光：玩具的琥珀 */
+
+[data-album-id='garden-stroll'] { --album-rgb: 117, 168, 72; }   /* 漫步花园：草木绿 */
+[data-album-id='wings-flutter'] { --album-rgb: 79, 143, 126; }   /* 羽翼虫鸣：林间的苔青 */
+[data-album-id='wild-kingdom'] { --album-rgb: 192, 138, 62; }    /* 旷野生灵：稀树草原的金 */
+[data-album-id='deep-blue'] { --album-rgb: 43, 110, 168; }       /* 深蓝之海：海水蓝 */
+
+[data-album-id='farm-days'] { --album-rgb: 192, 95, 69; }        /* 农场时光：谷仓红 */
+[data-album-id='curiosity-club'] { --album-rgb: 63, 151, 173; }  /* 好奇俱乐部：实验室的青 */
+[data-album-id='machines-workshop'] { --album-rgb: 192, 140, 47; } /* 机械工场：工程黄 */
+
+/* 天空之上：整本压成夜空的墨蓝黑，字与外环随之翻成浅色 */
+[data-album-id='sky-beyond'] {
+  --album-rgb: 26, 33, 56;
+  --album-wash-top: 0.97;
+  --album-wash-mid: 0.91;
+  --album-wash-foot: 0.87;
+  --album-ink: #eef2ff;
+  --album-ink-soft: rgba(238, 242, 255, 0.66);
+  --album-mat: rgba(255, 255, 255, 0.14);
+  --album-ring: rgba(255, 255, 255, 0.24);
+  --album-track: rgba(255, 255, 255, 0.18);
+  --album-bar: #7fa9ff;
+  --album-weave: rgba(255, 255, 255, 0.04);
+  --album-border: rgba(255, 255, 255, 0.14);
+  /* 别的十五本封面是兑了白的一层色，这一本要整块墨蓝——夜空不掺白 */
+  --book-face-mix: 100%;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+/*
+ * 整页回退转场（返回键、各页返回箭头；iOS 的左缘手势由原生跟手，不走这里）。
+ *
+ * 只在 utils/viewTransition.ts 挂上 .nav-back 的那一次换页里生效，普通的前进
+ * 导航仍是直接切换。
+ *
+ * 底下那张快照全程不透明，只有上面那张会淡出：两张都做淡入淡出的话，重叠区会
+ * 一起变透明、露出页面底色，两页互相透出。也因此要把 UA 默认的 plus-lighter
+ * 混合改回 normal，否则重叠处发白。
+ *
+ * 运动语言按平台分两套。默认这一套是 iOS 的：旧页整张向右滑走，底下的上一层
+ * 从 -24% 跟上来——视差比位移小，才像「它一直在下面」，而不是两页各滑各的。
+ * 它是照着原生左缘手势的收尾做的，两者必须是同一件事的两种放法。
+ */
+:root.nav-back::view-transition-group(root) {
+  animation: none;
+}
+
+:root.nav-back::view-transition-old(root),
+:root.nav-back::view-transition-new(root) {
+  mix-blend-mode: normal;
+  animation-duration: 280ms;
+  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+  animation-fill-mode: both;
+}
+
+:root.nav-back::view-transition-old(root) {
+  z-index: 2;
+  animation-name: nav-back-out;
+}
+
+:root.nav-back::view-transition-new(root) {
+  z-index: 1;
+  animation-name: nav-back-in;
+}
+
+@keyframes nav-back-out {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes nav-back-in {
+  from {
+    transform: translateX(-24%);
+  }
+}
+
+/*
+ * 安卓那一套：Material 的 backward，不做整页横扫。
+ *
+ * 上面那套是 iOS 的运动语言——整页向右飞出 100%，方向对着左缘手势的手指。安卓
+ * 的返回手势起手在**右**边缘、往左划，页面却整张向右扫出去，方向与手指相反，
+ * 违和就在这里；何况安卓这一侧根本没有跟手的手，一次性事件配一段一比一的横扫，
+ * 幅度也过头了。
+ *
+ * 换成小位移加淡出：旧页右移 24px 淡出，上一层从 -24px 归位、全程不透明。位移
+ * 只是「往回一步」的方向提示，真正表达换页的是那一次淡出，与系统的返回观感同族。
+ */
+:root[data-platform='android'].nav-back::view-transition-old(root),
+:root[data-platform='android'].nav-back::view-transition-new(root) {
+  animation-duration: 250ms;
+  /* Material 的标准缓动：起步快、收尾长，与系统自己的转场同一条 */
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+:root[data-platform='android'].nav-back::view-transition-old(root) {
+  animation-name: nav-back-android-out;
+}
+
+:root[data-platform='android'].nav-back::view-transition-new(root) {
+  animation-name: nav-back-android-in;
+}
+
+@keyframes nav-back-android-out {
+  to {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+
+@keyframes nav-back-android-in {
+  from {
+    transform: translateX(-24px);
+  }
+}
+
+/* Pointer focus must remain available to accessibility and focus restoration, but
+   must not paint keyboard rings, including delayed focus() after a touch gesture.
+   Text editing retains its indicator. Override component :focus-visible rules too. */
+html[data-input-modality='pointer'] :focus:not(input):not(textarea):not(select):not([contenteditable]):not([role='textbox']) {
+  outline: none !important;
+}

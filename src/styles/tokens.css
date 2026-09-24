@@ -1,0 +1,352 @@
+/* 全项目唯一的设计变量定义处（颜色/圆角/阴影/字体）
+   设计语言：冷调浅底 + 藏青墨色 + 亮蓝点缀，线索为浅紫灰药丸
+
+   主题由 <html data-theme> 决定，取值 light / dark，由 JS 写入
+   （utils/settings.ts 的 applyTheme；「跟随系统」在那里读一次 matchMedia）。
+   不用 prefers-color-scheme 的媒体查询分支：那样每个变量都要在媒体查询和
+   [data-theme] 里各写一遍，两份迟早分岔。index.html 里有一段同步脚本，
+   在首帧之前就把属性写好，避免深色用户先看到一闪的白。 */
+:root,
+:root[data-theme='light'] {
+  --color-bg: #f5f7fc;
+  --color-surface: #ffffff;
+  --color-text: #33415e;
+  --color-text-muted: #8b95ab;
+  --color-accent: #3b82f6;
+  /* 同一个蓝，拆成分量供 rgba() 自配 alpha（光晕这类要多档透明度的场合） */
+  --color-accent-rgb: 59, 130, 246;
+  --color-accent-soft: rgba(59, 130, 246, 0.14);
+  --color-fill: #3b4a68;
+  --color-mark: #45536f;
+  --color-line: #e3e8f2;
+  --color-line-strong: #33415e;
+  --color-clue-bg: #e9edf8;
+  --color-success: #3f8f5f;
+  --color-success-rgb: 63, 143, 95;
+  --color-danger: #cf5147;
+  --color-danger-rgb: 207, 81, 71;
+
+  /* 棋盘那圈描边的粗细。画在盒内（box-sizing: border-box），格子因此从边框
+     内沿才开始——线索槽要补上同样的位移才能与格子同心，见 Game.module.css。 */
+  --board-border-width: 2px;
+
+  /*
+   * 返回键的落点：左沿离页边 8px、上沿离安全区顶 10px。
+   *
+   * 数值出自对局页顶栏（Game.module.css 里 .game 的 padding）——全站按得最多
+   * 的那一枚返回在那儿，画册页、我的收藏、每日挑战都对齐到它。四处页眉各有
+   * 各的页边距（28 / 22 / 20px），所以对齐要靠 calc 把差值退回去，不能各写
+   * 一个负外边距：页边距一改，返回键就又跳开了。
+   */
+  --back-inset-x: 8px;
+  --back-inset-y: 10px;
+
+  /* 圆角矩形是本作的核心造型元素：所有可选模块（卡片、瓷砖、缩略图、解锁库）
+     共用同一条弧度，不按层级分档，弧度一致本身就是识别度 */
+  --radius-card: 16px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
+  /* 投影与描边统一从这个色调派生，深色主题下换成纯黑，浅色下是藏青 */
+  --shadow-tint: rgba(51, 65, 94, 0.16);
+  --shadow-card: 0 1px 3px rgba(51, 65, 94, 0.06), 0 6px 20px rgba(51, 65, 94, 0.07);
+
+  /* 弹窗背后那层压暗 */
+  --color-scrim: rgba(38, 48, 70, 0.45);
+
+  /* 线索药丸那圈几乎看不见的描边与投影：亮色下是藏青，暗色下必须换成黑，
+     否则药丸底下会浮出一圈比它自己还亮的雾 */
+  --shadow-hairline: rgba(51, 65, 94, 0.07);
+  --shadow-hairline-cast: rgba(51, 65, 94, 0.1);
+
+  /* 空槽位（解锁库没解开的格子、关卡列表的占位）与它更淡的一档 */
+  --color-slot: rgba(51, 65, 94, 0.09);
+  --color-slot-faint: rgba(51, 65, 94, 0.045);
+  /* 压在解锁库缩略图上的一层薄底色，用来把没解锁的部分推远 */
+  --color-bg-veil: rgba(245, 247, 252, 0.72);
+  /* 极淡的主题蓝底：当前章、选中态这类「在这儿」的提示 */
+  --color-accent-wash: #eef4fe;
+  /* 浮在浅色凹槽上的那一格（分段选择的选中项）。它必须比凹槽更亮而不是
+     跟着 surface 走：深色主题下 surface 比凹槽还暗，选中项会从「浮起」
+     变成「陷下去」，选中与未选中的关系整个反过来 */
+  --color-raised: #ffffff;
+  /* 不可用状态的文字与小圆点：比 muted 再淡一档，是「这里没东西」而不是「次要」 */
+  --color-text-disabled: #b8c0cf;
+  /* 暖色提示（每日挑战的「进行中」）：这一档不跟主题蓝走，靠色相区分状态 */
+  --color-warm: #a36b16;
+  --color-warm-soft: #fff2d8;
+
+  /*
+   * 四个主题的识别色（精选合集 / 日常生活 / 自然世界 / 探索发现）。
+   *
+   * 它出现在首页的主题卡、主题画册页的分段与画册书脊上，三处必须是同一组色，
+   * 否则同一个主题在两层之间换了颜色，那点「认得出」就白建了。哪个主题用哪个色
+   * 由 global.css 里按 data-group 一次映射，组件只读 --group-color。
+   */
+  --group-start: #c9873f;
+  --group-living: #5f83cf;
+  --group-nature: #4d9361;
+  --group-play: #8a6fc0;
+  /* 同一组色的分量：主题卡的底、边、圆章外环与虚线都要各自的一档透明度 */
+  --group-start-rgb: 201, 135, 63;
+  --group-living-rgb: 95, 131, 207;
+  --group-nature-rgb: 77, 147, 97;
+  --group-play-rgb: 138, 111, 192;
+
+  /*
+   * 画册封面底纹的浓度：上沿一档、腰上一档（往下再自行淡出）。
+   *
+   * 十六本各自的色在 global.css 里按 data-album-id 给（--album-rgb），浓度却要
+   * 三档：上沿、腰上、底下。两个主题各一套——浅色下封面是白纸上印的一层色，太浓就盖过了封面画；
+   * 深色下同样的透明度压在深灰纸上几乎看不出来，得往上提一档才留得住那点色。
+   * 某一本要更浓（天空之上那种整本压黑的），在它自己那条规则里覆盖这两个值。
+   */
+  --album-wash-top: 0.3;
+  --album-wash-mid: 0.11;
+  --album-wash-foot: 0.05;
+
+  /*
+   * ── 一本书 ────────────────────────────────
+   * 首页四宫格与主题画册页共用同一套装帧，两处的书因此是同一本。
+   *
+   * 一本书只有三件事：一块实色封面、左边那道装订的折光、右边那一叠纸。
+   * 没有纸板厚边，没有一层摞一层的投影——上一版把「厚」摊成七层投影
+   * （四张纸 + 两条纸板 + 落地影），书的右下角摞成一段楼梯，厚是够了，
+   * 但那是投影堆出来的厚，不是一本书的厚。
+   *
+   * **折光**（--book-fold）是这一版把书脊请回来的方式：不是一条颜色不同的
+   * 带子（那是上一版被否掉的老派精装脊），而是纯粹的一道光——最外一线暗、
+   * 紧接着一道高光、折过去一片受光、一道沟、再一线回光。它只有明暗没有颜色，
+   * 十六本封面色各不相同也压得住，深浅两个主题各给一档强度。
+   * 做法来自通行的 skeuomorphic book cover 画法（封面左沿百分之几处的一组
+   * 明暗），只是把百分比换成像素——首页那格才 90 来像素宽，按百分比取值
+   * 折光会细到看不见。
+   *
+   * **纸**（--book-leaves）是封面右边实打实的一叠：2px 纸 + 1px 缝地排下去，
+   * 一叠 9px 就是三张纸，数得出。它画在书自己的背景里（不是投影），
+   * 所以书的外轮廓仍是一整块，不会在右下角摞出楼梯。
+   */
+  /* 折光占掉封面左沿多宽：--book-fold 那道渐变最后一个色标就是它。
+     两页的左内边距都要从这儿起算，封面画压在折光上就不像装订，像印歪了 */
+  --fold-w: 9px;
+  --fold-dark: rgba(0, 0, 0, 0.12);
+  --fold-lit: rgba(255, 255, 255, 0.5);
+  --fold-soft: rgba(255, 255, 255, 0.22);
+  --book-fold: linear-gradient(
+    90deg,
+    var(--fold-dark) 0 1px,
+    var(--fold-lit) 1px 3px,
+    var(--fold-soft) 3px 6.5px,
+    var(--fold-dark) 6.5px 7.5px,
+    var(--fold-soft) 7.5px 9px,
+    transparent 9px
+  );
+  /* 纸叠：一张纸 2.5px，一道缝 1px。压在上面的那层明暗（--book-block）让这一叠
+     有厚薄——挨着封面的一侧和最外的切口都暗，中间受光，一叠纸才是个立体的东西，
+     不是贴在封面右边的一条米色胶带 */
+  --leaf-1: #fffdf6;
+  --leaf-2: #cfbf9c;
+  --book-leaves: repeating-linear-gradient(90deg, var(--leaf-1) 0 2.5px, var(--leaf-2) 2.5px 3.5px);
+  --book-block: linear-gradient(
+    90deg,
+    rgba(46, 36, 28, 0.22),
+    rgba(46, 36, 28, 0.02) 38%,
+    rgba(46, 36, 28, 0.06) 72%,
+    rgba(46, 36, 28, 0.26)
+  );
+  /* 封面与纸叠之间那道缝：一线暗，再往封面里散开一点 */
+  --book-seam: linear-gradient(
+    270deg,
+    rgba(46, 36, 28, 0.26) 0 1px,
+    rgba(46, 36, 28, 0.1) 1px,
+    rgba(46, 36, 28, 0) 6px
+  );
+  /*
+   * 封面色的浓度：这一本的色兑多少进纸白。
+   * 从前封面是一层半透明的色压在白纸上（--album-wash-*），淡得像水印；
+   * 这一版封面就是一块实色，孩子的画册封面本来就是整块色印上去的。
+   * 「天空之上」那种整本压黑的在 global.css 里把这个值改成 100%。
+   */
+  --book-face-mix: 46%;
+  /* 封面画外面那一圈厚白边：一张贴纸的边。深色下退半档，不然十六圈纯白
+     压在暗底上比封面画还亮 */
+  --book-mat: #ffffff;
+
+  /*
+   * 封面下沿那条进度杠：一段槽 + 一段已完成。
+   *
+   * 唯一的规矩是**已完成的那一段必须是更实、更抢眼的那一个**——它代表已经攒下
+   * 的东西，读起来该像杠被填进去了，而不是被啃掉了一截。浅色主题下这是「白槽里
+   * 灌进一段深色的封面色」；深色主题下同一句话要反过来说：槽压暗成一道凹槽，
+   * 已完成那一段兑白提亮。照抄浅色那一套的话，没打的部分反而比打过的更亮，
+   * 进度条整个读反。
+   *
+   * --book-bar-blend 是已完成那一段兑进封面色的那个极色（黑 / 白），
+   * 两页的进度杠都从它派生（LevelSelect / LibraryPage 里的 --book-bar）。
+   */
+  --book-bar-track: rgba(255, 255, 255, 0.55);
+  --book-bar-blend: #000000;
+
+  /*
+   * 定位角标的两个颜色：绿＝现在就能玩，紫＝完整版。
+   *
+   * 它不跟主题色走。四张卡上「要不要钱」必须是同一句话同一个颜色，
+   * 跟着主题变色的话，玩家得先认色再认字。
+   */
+  --tier-full: #7c5fb8;
+  --tier-full-rgb: 124, 95, 184;
+
+  /* 「集齐」「全部解锁」「烧脑」共用的那道金：成就色，与状态用的暖色分开 */
+  --color-gold: #a67c2c;
+  --color-gold-rgb: 198, 154, 74;
+
+  /*
+   * 带色的下沿厚边。金/绿/蓝三块可按压元素各有自己的底色，厚边必须是**同色系里
+   * 更暗的一档**，否则那道边看着像贴在按钮下面的一条亮线而不是它自己的侧面。
+   * 深色主题下这一点尤其要紧：底色本来就暗，照抄浅色主题那三个值等于在每个
+   * 按钮下面点了一盏灯。
+   */
+  --press-shade-gold: #ddc79c;
+  --press-shade-green: #c7dbcd;
+  --press-shade-blue: #b7d1f6;
+
+  /* 棋盘那圈近黑外框与网格线。深色主题下要反过来（暗底上的浅线），
+     所以不能继续散在 Board.module.css 里写死 */
+  --color-board-frame: #17191f;
+  --color-grid-line: rgb(23 25 31 / 55%);
+  --color-grid-line-strong: #17191f;
+
+  /*
+   * 压在填色格上的那一段格线，另有一支墨。
+   *
+   * 网格线只有一支墨时，它得同时压得住两种底：空格底和填色底。浅色主题侥幸
+   * 两边都成立——藏青的填色格上压一条更深的线仍分得开；深色主题必然破功，
+   * 填色格是浅的、线也是浅的，两格挨在一起就糊成一整块，一条缝都没有。
+   *
+   * 所以格线按它压着的是什么来取墨：两侧都是填色格的那一段用这一支，其余照常。
+   * 浅色下两支是同一个颜色，观感一个像素都不变；深色下这一支翻成暗墨。
+   * 分段的做法在 BoardCanvas 绘制循环的第 4 步。
+   */
+  --color-grid-line-on-fill: rgb(23 25 31 / 55%);
+  --color-grid-line-strong-on-fill: #17191f;
+
+  /* 可按压元素的立体感：不是模糊投影，而是按钮下沿那一道实色厚边。
+     按下时元素下沉、厚边同步变薄，位移与厚度之和恒定，看起来才是"压下去"
+     而不是"整体往下跳"。--press-depth 是静止时的厚度。 */
+  --press-depth: 4px;
+  --press-sunk: 1px;
+  --press-shade: #d3daea;
+  --press-shade-accent: #2a63c9;
+  --shadow-float: 0 10px 30px rgba(51, 65, 94, 0.18), 0 2px 6px rgba(51, 65, 94, 0.1);
+  --font-stack: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+}
+
+/*
+ * 深色主题。只覆盖颜色，尺寸、圆角、厚边的厚度一律沿用——换的是配色不是造型。
+ *
+ * 两条不那么显然的：
+ *
+ * 1. --color-fill（棋盘填充格）在深色下是**浅色**。填充格代表「这里有画」，
+ *    它必须是这一屏上最实的那块；暗底上最实的是亮色。跟着一起翻的还有进度槽
+ *    的小方块和模式条的填色图标——它们都是这块颜色的引用，翻不动就对不上了。
+ *
+ * 2. --press-shade（可按压元素下沿那道厚边）在深色下比底色**更暗**而不是更亮。
+ *    厚边模拟的是按钮侧面落在下方的阴影，光仍然来自上方；把它提亮会变成
+ *    「按钮下面垫了一条发光的边」，立体感立刻反过来。
+ */
+:root[data-theme='dark'] {
+  --color-bg: #12151c;
+  --color-surface: #1b202b;
+  --color-text: #e4e9f3;
+  --color-text-muted: #8f9ab1;
+  --color-accent: #5f9dff;
+  --color-accent-rgb: 95, 157, 255;
+  --color-accent-soft: rgba(95, 157, 255, 0.2);
+  /*
+   * 填充格。曾是 #c6d2e8——一块近乎纸白的色，涂满半屏之后整个盘面在发光，
+   * 而深色主题的用户开它多半就是为了别被屏幕晃。这一档退到中亮的青灰蓝：
+   * 仍是这一屏上最实、最抢眼的那块（板底 #1b202b 与它差着一整个明度区间），
+   * 但大面积铺开不再刺眼，也给压在它上面的格线让出了一档可用的暗墨。
+   */
+  --color-fill: #9aaecf;
+  --color-mark: #93a1bb;
+  --color-line: #2a3140;
+  --color-line-strong: #cdd6e8;
+  --color-clue-bg: #262d3b;
+  --color-success: #58b984;
+  --color-success-rgb: 88, 185, 132;
+  --color-danger: #e2685e;
+  --color-danger-rgb: 226, 104, 94;
+
+  --shadow-tint: rgba(0, 0, 0, 0.55);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.34);
+  --shadow-float: 0 10px 30px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.34);
+  --color-scrim: rgba(6, 9, 15, 0.62);
+
+  --press-shade: #070a10;
+  --press-shade-accent: #1d4894;
+
+  --color-board-frame: #6b7791;
+  --color-grid-line: rgb(210 221 240 / 26%);
+  --color-grid-line-strong: #7b879d;
+  /* 填色格之间那道缝翻成暗墨：浅线压在浅格上等于没有线（见浅色那一处的注释）。
+     浓度对着浅色主题量的——那边线压在藏青填色格上大约差 30~50 个色阶，
+     这两个值压在 #9aaecf 上落在同一档，两个主题的「缝」因此一样深。 */
+  --color-grid-line-on-fill: rgb(20 26 38 / 34%);
+  --color-grid-line-strong-on-fill: rgb(20 26 38 / 62%);
+
+  --shadow-hairline: rgba(0, 0, 0, 0.4);
+  --shadow-hairline-cast: rgba(0, 0, 0, 0.45);
+  --color-slot: rgba(255, 255, 255, 0.07);
+  --color-slot-faint: rgba(255, 255, 255, 0.035);
+  --color-bg-veil: rgba(18, 21, 28, 0.72);
+  --color-accent-wash: #1e2a41;
+  --color-raised: #39435a;
+  --color-text-disabled: #5b6478;
+  --color-warm: #e0b263;
+  --color-warm-soft: rgba(224, 178, 99, 0.16);
+
+  /* 主题色在暗底上要提亮一档，否则分区卡上那行小字读不出来 */
+  --group-start: #d9a05b;
+  --group-living: #7fa3e8;
+  --group-nature: #6fb586;
+  --group-play: #a78ede;
+  --group-start-rgb: 217, 160, 91;
+  --group-living-rgb: 127, 163, 232;
+  --group-nature-rgb: 111, 181, 134;
+  --group-play-rgb: 167, 142, 222;
+  --tier-full: #b49ae6;
+  --tier-full-rgb: 180, 154, 230;
+
+  /* 封面底纹：深色纸上要浓一档才留得住色，见浅色那一处的注释 */
+  --album-wash-top: 0.42;
+  --album-wash-mid: 0.18;
+  --album-wash-foot: 0.09;
+
+  /* 封面色的浓度在深色下要提一档，见浅色那一处的注释 */
+  --book-face-mix: 60%;
+  --book-mat: #e2e6f0;
+
+  /* 进度杠反过来说同一句话：槽压暗成凹槽，已完成那一段兑白提亮。
+     照抄浅色那一套的话，没打的部分比打过的还亮（见浅色那一处的注释） */
+  --book-bar-track: rgba(0, 0, 0, 0.34);
+  --book-bar-blend: #ffffff;
+
+  /* 折光整体收一档：同样的白压在深封面上会亮成一条荧光边，
+     暗的那一档反过来放，深底上 0.12 的黑等于没有 */
+  --fold-dark: rgba(0, 0, 0, 0.32);
+  --fold-lit: rgba(255, 255, 255, 0.22);
+  --fold-soft: rgba(255, 255, 255, 0.09);
+
+  /* 暗房里的纸是灰的：纯白会在每本书的右沿点起一根灯管 */
+  --leaf-1: #d3ccbc;
+  --leaf-2: #857c6a;
+
+  /* 金在深色下要提亮才认得出是金；描边与底色用的分量跟着一起提 */
+  --color-gold: #d9b163;
+  --color-gold-rgb: 212, 170, 92;
+
+  --press-shade-gold: #150e04;
+  --press-shade-green: #061109;
+  --press-shade-blue: #071326;
+}

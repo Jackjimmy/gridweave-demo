@@ -1,0 +1,243 @@
+{
+  "albums": [
+    {
+      "id": "festive-tales",
+      "en": "Feasts & Fables",
+      "zh": "节日奇谭",
+      "group": "精选合集",
+      "description": "烟花、雪人和中国结；再翻一页，是海盗、骑士和独角兽。",
+      "stat": {
+        "total": 30,
+        "bySize": {
+          "5": 7,
+          "10": 18,
+          "15": 5
+        },
+        "byTier": {
+          "轻松": 15,
+          "标准": 14,
+          "烧脑": 1
+        }
+      },
+      "sections": [
+        {
+          "id": "prologue",
+          "size": 5,
+          "zh": "轻量序章",
+          "en": "Light Prologue",
+          "groups": [
+            {
+              "id": "prologue",
+              "zh": null,
+              "en": null,
+              "levels": [
+                "easy-01-heart",
+                "d0016-diamond",
+                "easy-09-toy-car",
+                "d0302-star",
+                "easy-08-airplane",
+                "easy-05-moon"
+              ]
+            }
+          ]
+        }
+      ],
+      "levels": [
+        "easy-01-heart",
+        "d0016-diamond",
+        "easy-09-toy-car",
+        "d0302-star",
+        "easy-08-airplane",
+        "easy-05-moon"
+      ]
+    },
+    {
+      "id": "sweet-shop",
+      "en": "Sweet Shop",
+      "zh": "甜品店",
+      "group": "精选合集",
+      "description": "蛋糕、冰淇淋、糖果和奶茶，一整册的快乐热量。",
+      "stat": {
+        "total": 20,
+        "bySize": {
+          "5": 0,
+          "10": 20,
+          "15": 0
+        },
+        "byTier": {
+          "轻松": 9,
+          "标准": 11,
+          "烧脑": 0
+        }
+      },
+      "sections": [
+        {
+          "id": "shop",
+          "size": 10,
+          "zh": "逛一圈甜品店",
+          "en": "A Loop Around the Shop",
+          "groups": [
+            {
+              "id": "cake-window",
+              "zh": "蛋糕橱窗",
+              "en": "The Cake Window",
+              "levels": [
+                "d0095-cupcake",
+                "d0388-macaron",
+                "d0652-pudding"
+              ]
+            },
+            {
+              "id": "from-the-oven",
+              "zh": "刚出炉",
+              "en": "Fresh from the Oven",
+              "levels": [
+                "medium-128-cookie",
+                "medium-129-donut",
+                "d0469-apple-pie"
+              ]
+            }
+          ]
+        }
+      ],
+      "levels": [
+        "d0095-cupcake",
+        "d0388-macaron",
+        "d0652-pudding",
+        "medium-128-cookie",
+        "medium-129-donut",
+        "d0469-apple-pie"
+      ]
+    },
+    {
+      "id": "deep-blue",
+      "en": "Deep Blue",
+      "zh": "深蓝之海",
+      "group": "自然世界",
+      "description": "海面之下与海岸之上：海洋生物、沙滩灯塔和出海的船。",
+      "stat": {
+        "total": 59,
+        "bySize": {
+          "5": 0,
+          "10": 42,
+          "15": 17
+        },
+        "byTier": {
+          "轻松": 20,
+          "标准": 31,
+          "烧脑": 8
+        }
+      },
+      "sections": [
+        {
+          "id": "down-and-down",
+          "size": 10,
+          "zh": "一路下潜",
+          "en": "Down and Down",
+          "groups": [
+            {
+              "id": "shallows",
+              "zh": "浅水滩",
+              "en": "In the Shallows",
+              "levels": [
+                "d0295-shrimp",
+                "d0441-seaweed"
+              ]
+            },
+            {
+              "id": "shapes-in-deep",
+              "zh": "深处的影子",
+              "en": "Shapes in the Deep",
+              "levels": [
+                "d0642-eel",
+                "d0060-jellyfish"
+              ]
+            },
+            {
+              "id": "big-ones",
+              "zh": "大块头",
+              "en": "The Big Ones",
+              "levels": [
+                "medium-114-whale",
+                "d0248-seal"
+              ]
+            }
+          ]
+        }
+      ],
+      "levels": [
+        "d0295-shrimp",
+        "d0441-seaweed",
+        "d0642-eel",
+        "d0060-jellyfish",
+        "medium-114-whale",
+        "d0248-seal"
+      ]
+    },
+    {
+      "id": "sky-beyond",
+      "en": "Beyond the Sky",
+      "zh": "天空之上",
+      "group": "探索发现",
+      "description": "风云雷电、日月星辰，再往外是火箭、空间站和不明飞行物。",
+      "stat": {
+        "total": 27,
+        "bySize": {
+          "5": 2,
+          "10": 15,
+          "15": 10
+        },
+        "byTier": {
+          "轻松": 7,
+          "标准": 16,
+          "烧脑": 4
+        }
+      },
+      "sections": [
+        {
+          "id": "farther-out",
+          "size": 15,
+          "zh": "再往外",
+          "en": "Farther Out",
+          "groups": [
+            {
+              "id": "leaving-ground",
+              "zh": "离开地面",
+              "en": "Leaving the Ground",
+              "levels": [
+                "d0436-jet-fighter",
+                "hard-01-rocket"
+              ]
+            },
+            {
+              "id": "in-orbit",
+              "zh": "在轨道上",
+              "en": "In Orbit",
+              "levels": [
+                "d0213-space-shuttle",
+                "hard-56-space-station",
+                "hard-54-astronaut"
+              ]
+            },
+            {
+              "id": "last-beam",
+              "zh": "最后一束光",
+              "en": "One Last Beam",
+              "levels": [
+                "hard-55-ufo-abduction"
+              ]
+            }
+          ]
+        }
+      ],
+      "levels": [
+        "d0436-jet-fighter",
+        "hard-01-rocket",
+        "d0213-space-shuttle",
+        "hard-56-space-station",
+        "hard-54-astronaut",
+        "hard-55-ufo-abduction"
+      ]
+    }
+  ]
+}

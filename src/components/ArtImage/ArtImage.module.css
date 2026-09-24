@@ -1,0 +1,10 @@
+.art {
+  display: block;
+  aspect-ratio: 1;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.background {
+  fill: #fff;
+}

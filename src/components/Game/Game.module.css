@@ -1,0 +1,948 @@
+.page {
+  /* 旧 WebView 先使用传统视口单位；支持动态视口单位时由下方 @supports 覆盖。 */
+  --game-viewport-width: 100vw;
+  --game-viewport-height: 100vh;
+  --game-safe-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+  --game-safe-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+  --game-safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --game-safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --game-side-reserve: 0px;
+  width: 100%;
+  height: var(--game-viewport-height);
+  overflow: hidden;
+  overscroll-behavior: none;
+  /* 文字选择与 WebKit 长按 callout 已在 global.css 里全站关掉：对局页按住、拖动
+     都是落子，首页与画册页同样不该被原生选择手势截胡。这里不再单独写一份。 */
+  /*
+   * 操作条的三项几何量随「多出来的纵向空间」连续变化：
+   * - 360×540（高宽比 1.5）及更修长的屏幕达到原设计 60 / 22 / 38；
+   * - 接近正方形时平滑收至 44 / 12 / 12，不在某个机型比例上突然跳档。
+   *
+   * 这里先写 vh/vw 给旧 WebView；支持动态视口单位时在下方同步覆盖。
+   */
+  --action-tile-size: clamp(44px, calc(44px + 11.111vh - 12.222vw), 60px);
+  --action-bar-gap: clamp(12px, calc(12px + 6.944vh - 7.639vw), 22px);
+  --action-bottom-gap: clamp(12px, calc(12px + 18.056vh - 19.861vw), 38px);
+  /* 对局中底部为悬浮操作条预留的高度，与 .game 的 padding-bottom 同源。
+     = 操作条本体 + 下沿厚边 4 + 离屏底 + 10px 余量。 */
+  --bottom-reserve: calc(var(--action-tile-size) + var(--action-bottom-gap) + 14px);
+  /* 顶栏、计数和间距的纵向预算；在矮屏隐藏计数后同步缩短。 */
+  --game-fixed-vertical: 148px;
+  --game-fallback-fixed-vertical: 288px;
+  /*
+   * 高屏保留原来的 228px；短屏连续收至 204px。底部安全区已经包含在卡片的
+   * padding 里，因此要从视觉高度预算中扣掉，不能让 Home Indicator 把正文也撑高。
+   */
+  --win-card-min-height: clamp(
+    204px,
+    calc(24vh + 36px - var(--game-safe-bottom)),
+    228px
+  );
+  --win-card-height: var(--win-card-min-height);
+  /*
+   * 通关后棋盘的抬升量。棋盘原本居中于「底部留 --bottom-reserve」的那块区域；
+   * 结算卡把底部占用抬到卡片高度，区域缩短 (card − reserve)，中心相应上移一半。
+   * 这样卡片升起来正好停在画的下沿——抬升量是算出来的，不是估的，
+   * 换屏幕尺寸也不会出现卡片啃掉图案下沿的情况。
+   */
+  --celebrate-lift: calc((var(--win-card-height) - var(--bottom-reserve)) / 2);
+  /*
+   * 全面屏底部安全区会同时增高白卡并把画向上推。只回补其中最多 28px：
+   * iPhone X 上画与白卡之间留下约 56pt，和 Android 的结算比例一致，
+   * 而不是为了几何居中把画再次压到白卡边缘。没有安全区的 Android 为 0，
+   * 维持现有正确比例。
+   */
+  --celebrate-short-drop: clamp(0px, calc(65px - 8vh), 16px);
+  --celebrate-art-drop: calc(
+    clamp(0px, calc(var(--game-safe-bottom) - 6px), 28px) +
+      var(--celebrate-short-drop)
+  );
+  /* 解锁文案跟随全面屏补偿下移一部分，在顶栏与画之间重新取视觉中点。 */
+  --celebrate-copy-drop: clamp(
+    0px,
+    calc(var(--game-safe-bottom) - 14px),
+    20px
+  );
+  padding-left: var(--game-safe-left);
+  padding-right: var(--game-safe-right);
+  padding-top: var(--game-safe-top);
+  padding-bottom: var(--game-safe-bottom);
+}
+
+@supports (height: 100dvh) and (width: 100dvw) {
+  .page {
+    --game-viewport-width: 100dvw;
+    --game-viewport-height: 100dvh;
+    --action-tile-size: clamp(44px, calc(44px + 11.111dvh - 12.222dvw), 60px);
+    --action-bar-gap: clamp(12px, calc(12px + 6.944dvh - 7.639dvw), 22px);
+    --action-bottom-gap: clamp(12px, calc(12px + 18.056dvh - 19.861dvw), 38px);
+    --win-card-min-height: clamp(
+      204px,
+      calc(24dvh + 36px - var(--game-safe-bottom)),
+      228px
+    );
+    --celebrate-short-drop: clamp(0px, calc(65px - 8dvh), 16px);
+  }
+}
+
+.game {
+  width: 100%;
+  max-width: 560px;
+  height: 100%;
+  margin: 0 auto;
+  /* 顶栏返回键的落点由这两个内边距决定，别处的返回都对齐到它，见 tokens.css */
+  padding: var(--back-inset-y) var(--back-inset-x) var(--bottom-reserve);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* --clue-scale 只有网页试玩会写（Game.tsx 按视口宽裕度给 1 ~ 1.3，与 clueLayout
+     的 scale 同一个数）：线索槽在 JS 里放大了，这里的字号上限得跟着抬，否则
+     槽宽了字仍被压在手机那档上。正式版没有这个变量，按 1 算，下面四条一个字不变。 */
+  /* 未知尺寸兜底：未来扩展新档位却忘了加专用规则时，按通用公式给出合理的
+     单元格与线索字号，避免 --cell-size 未定义导致 repeat(size, ...) 整条失效、
+     棋盘静默坍塌。纵向按偏保守多扣（宁可格子略小也不让棋盘被裁），
+     已知尺寸的精调规则见下方 data-size 三档。 */
+  --cell-size-raw: min(
+    64px,
+    calc(
+      (var(--game-viewport-width) - var(--game-safe-left) - var(--game-safe-right) -
+            var(--game-side-reserve) - var(--clue-gutter-row) - 24px) / var(--size)
+    ),
+    calc(
+      (
+          var(--game-viewport-height) - var(--game-safe-top) - var(--game-safe-bottom) -
+            var(--game-fallback-fixed-vertical) - var(--bottom-reserve)
+        ) /
+        var(--size)
+    )
+  );
+  --clue-font: clamp(10px, calc(var(--cell-size) * 0.4 * var(--clue-scale, 1)), calc(16px * var(--clue-scale, 1)));
+  --cell-size: var(--cell-size-raw);
+  /*
+   * 对局态棋盘的外框边长。盘面自己已把每个格子的两轴锁死；这里再把它的
+   * 外层槽位锁死，避免相邻线索的文字样式参与 .layout 的 max-content 计算。
+   */
+  --board-extent: calc(
+    var(--cell-size) * var(--size) + var(--board-border-width) * 2
+  );
+}
+
+/*
+ * 量 --cell-size-raw 用的探针。JS 量到它的宽度、向下取到整数物理像素，再把结果
+ * 写回 .game 的 --cell-size（见 useSnappedCellSize）。
+ *
+ * 只有它读原值，所以那次写回不会改变下一次测量——两者之间没有回环。
+ * 绝对定位使其不参与 .game 的 flex 流（绝对定位元素不是 flex item，也不吃 gap），
+ * 零高度、不可见、不接事件；visibility:hidden 而不是 display:none，
+ * 后者会让 ResizeObserver 只报 0×0。
+ */
+.cellProbe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--cell-size-raw);
+  height: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* 线索与棋盘共同构成主体：宽度公式只扣除页面边距和左线索槽，不再添加右侧镜像留白。
+   因此整体接近满宽并整体居中，而不是只让 n×n 棋盘居中。 */
+.game[data-size='5'] {
+  --clue-font: clamp(13px, calc(var(--cell-size) * 0.28 * var(--clue-scale, 1)), calc(16px * var(--clue-scale, 1)));
+  --cell-size-raw: min(
+    72px,
+    calc(
+      (var(--game-viewport-width) - var(--game-safe-left) - var(--game-safe-right) -
+            var(--game-side-reserve) - var(--clue-gutter-row) - 24px) / 5
+    ),
+    calc(
+      (
+          var(--game-viewport-height) - var(--game-safe-top) - var(--game-safe-bottom) -
+            var(--game-fixed-vertical) - var(--bottom-reserve)
+        ) / 9
+    )
+  );
+}
+
+.game[data-size='10'] {
+  --clue-font: clamp(11px, calc(var(--cell-size) * 0.4 * var(--clue-scale, 1)), calc(13px * var(--clue-scale, 1)));
+  --cell-size-raw: min(
+    44px,
+    calc(
+      (var(--game-viewport-width) - var(--game-safe-left) - var(--game-safe-right) -
+            var(--game-side-reserve) - var(--clue-gutter-row) - 24px) / 10
+    ),
+    calc(
+      (
+          var(--game-viewport-height) - var(--game-safe-top) - var(--game-safe-bottom) -
+            var(--game-fixed-vertical) - var(--bottom-reserve)
+        ) / 14
+    )
+  );
+}
+
+.game[data-size='15'] {
+  --clue-font: clamp(10px, calc(var(--cell-size) * 0.45 * var(--clue-scale, 1)), calc(12px * var(--clue-scale, 1)));
+  --cell-size-raw: min(
+    32px,
+    calc(
+      (var(--game-viewport-width) - var(--game-safe-left) - var(--game-safe-right) -
+            var(--game-side-reserve) - var(--clue-gutter-row) - 24px) / 15
+    ),
+    calc(
+      (
+          var(--game-viewport-height) - var(--game-safe-top) - var(--game-safe-bottom) -
+            var(--game-fixed-vertical) - var(--bottom-reserve)
+        ) / 19
+    )
+  );
+}
+
+/*
+ * 高宽比不超过 1.5 时，纵向空间开始比宽度更稀缺。进度只是辅助信息，
+ * aria-label 仍保留在 DOM 中供读屏读取；视觉槽压成 0，把约 24px 还给棋盘。
+ * media aspect-ratio 使用「宽 / 高」，所以这里的 2/3 等价于「高 / 宽 <= 1.5」。
+ */
+@media (min-aspect-ratio: 2 / 3) {
+  .page {
+    --game-fixed-vertical: 124px;
+    --game-fallback-fixed-vertical: 264px;
+  }
+
+  .statusSlot {
+    height: 0;
+    min-height: 0;
+    flex: 0 0 0;
+  }
+
+  /* 教学那两关例外：这一行还坐着「新手教学」，压成 0 它就掉到棋盘上了。
+     多花的 30px 只发生在那两关，且两关都是 5×5，纵向本来就最宽裕。 */
+  .statusSlot[data-has-help] {
+    height: auto;
+    flex: 0 0 auto;
+  }
+
+  .progress {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+/*
+ * 高宽比不超过 1.2（宽/高 >= 5/6）时，底部控制条会成为棋盘高度的主要瓶颈。
+ * 把三个功能块移到左侧后，底部只留 10px；左侧预留随按钮尺寸一起变化，
+ * 并同时进入棋盘的横向尺寸公式，避免用纵向换来的空间造成横向裁切。
+ */
+@media (min-aspect-ratio: 5 / 6) {
+  .page {
+    --bottom-reserve: 10px;
+    --game-side-reserve: calc(var(--action-tile-size) + 22px);
+  }
+
+  .game {
+    padding-left: calc(8px + var(--game-side-reserve));
+  }
+
+}
+
+/*
+ * 网页试玩版：操作条**留在底部**的条件（与 ActionBar.module.css 末尾同一条查询）。
+ *
+ * 上面那档「近正方形起把三块工具竖排到左侧」是给手机横屏省纵向空间用的；网页横屏
+ * 多半是桌面浏览器，纵向并不紧，换一个位置等于让玩家在两端各学一遍操作条。但真正
+ * 矮的窗口（手机横过来、桌面浏览器压到半高）纵向确实是瓶颈，那里仍按正式版把
+ * 操作条放到左侧——那一档横向本来有富余，左边让出一条不花棋盘的钱。
+ *
+ * 「矮」只看两样，而且两样都**只随高度单调**：视口比 2.6:1 更扁，或者高度不到 420。
+ * 于是固定高度只改宽度时，操作条至多从左侧回到底部一次，绝不会底部 → 左侧 → 底部
+ * 来回跳（从前那版按「宽 640 起看高度、更窄看比例」分两段，段与段的交界处正是
+ * 这么跳的）。门槛定得很极端：2:1 那版把「稍微扁一点」的桌面窗口也送去了左侧，
+ * 被否。1280×720、1280×540 在底部；1440×540 起、手机横过来（390 高）到左侧。
+ */
+@media (min-aspect-ratio: 5 / 6) and (max-aspect-ratio: 13 / 5) and (min-height: 421px) {
+  :global(html[data-demo]) .page {
+    --bottom-reserve: calc(var(--action-tile-size) + var(--action-bottom-gap) + 14px);
+    --game-side-reserve: 0px;
+  }
+
+  :global(html[data-demo]) .game {
+    padding-left: var(--back-inset-x);
+  }
+}
+
+/*
+ * 顶栏与棋盘之间的那一行。对局中放填充计数，通关后计数淡出、
+ * 让位给叠在同一槽位里的内容（当前是画框对照按钮）。
+ */
+/*
+ * 三列，与顶栏同一套骨架：计数钉在正中那一列，教学那枚按钮占右端一列。
+ *
+ * 不写 flex + justify-content: center 了——那样右端多一枚按钮，居中的计数
+ * 就会被它推得偏左。1fr / auto / 1fr 之下计数始终是屏幕的正中，按钮长成
+ * 「Comment jouer」也只吃自己那一列。
+ */
+.statusSlot {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+}
+
+/*
+ * 「新手教学」：这一行的右端，齿轮的正下方。
+ *
+ * 它与计数同进退：解题时两样都在，画一揭晓就一起淡出（见下方的 data-celebrating），
+ * 结算那一屏上因此没有它。那一刻玩家在看自己刚解出来的画，屏幕上再摆一枚
+ * 「新手教学」，等于在庆祝里插一句「要不要再学一遍」。
+ *
+ * 它从前并排在顶栏左端。可它是这一屏唯一写着字的按钮，德语「Anleitung」、
+ * 法语「Comment jouer」比中文四个字宽出一半，而顶栏中间那列是居中的册名——
+ * 一挤就叠在一起（真机实测德语下「Anleitung」直接压在「Leichter Aufta…」上）。
+ * 挪到下一行之后两者各占一行，长到什么程度都不会再撞。
+ *
+ * 只在教学那两关出现，所以这一行的高度按它来定（见 .statusSlot[data-has-help]）：
+ * 别的关卡照旧只有计数那么高，一个像素都不让给一枚不存在的按钮。
+ */
+.help {
+  grid-column: 3;
+  justify-self: end;
+  display: grid;
+  place-items: center;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #4a91f7, #3b82f6);
+  box-shadow: 0 var(--press-depth) 0 var(--press-shade-accent);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  color: #fff;
+}
+
+.help:active,
+.help[data-pressed] {
+  transform: translateY(calc(var(--press-depth) - var(--press-sunk)));
+  box-shadow: 0 var(--press-sunk) 0 var(--press-shade-accent);
+}
+
+/*
+ * 填充计数：正中那一列。
+ *
+ * grid-column 得显式写。这一行是三列的，而「新手教学」占的是第 3 列——
+ * 计数若交给自动排布，它会落进第 1 列，于是每一关的计数都贴在屏幕左边。
+ */
+.progress {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  font-size: 19px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.progressSwatch {
+  width: 19px;
+  height: 19px;
+  border-radius: 5px;
+  background: var(--color-fill);
+}
+
+/*
+ * 提示那句话：叠在计数原来的槽位上，说完就走（时长见 Game.tsx 的 HINT_NOTE_MS）。
+ *
+ * 与「关卡解锁！」同一套做法——绝对定位、不占布局高度。这里它更要紧：提示是在
+ * 对局中途出现的，一旦占位，棋盘会在玩家正盯着某一行时整体下移一截。
+ *
+ * 左右各让开 40px 是版心，不为谁让路：教学那两关右端坐着「新手教学」，
+ * 但那一枚与计数同进退——提示一开口，两样一起淡出（见 .help[data-dimmed]），
+ * 这句话于是照旧占满整行居中，不必为一枚此刻已经不在的按钮缩着写。
+ */
+.hintNote {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 0 40px;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: center;
+  color: var(--color-accent);
+  pointer-events: none;
+  /* 让计数先走掉再进场：两句话叠在同一行上，谁都读不出来 */
+  animation: hintNoteIn 0.24s ease-out 0.12s backwards;
+}
+
+@keyframes hintNoteIn {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-50% + 4px));
+  }
+}
+
+/*
+ * 教学那两关：这一行的高度按按钮算（计数只有 23px 高，按钮连厚边 30px），
+ * 免得它探出槽外压到棋盘上。
+ */
+.statusSlot[data-has-help] {
+  min-height: 30px;
+}
+
+/*
+ * 提示说话的时候计数让位。这里把过渡缩到 0.16s，不用 .progress 那条 0.46s：
+ * 那条是给通关庆祝写的——从解题态淡入欣赏态，慢是对的。
+ * 而提示是玩家刚刚按下按钮的直接回应，计数得赶在那句话进场之前走干净。
+ */
+.progress[data-dimmed='true'],
+.help[data-dimmed='true'] {
+  opacity: 0;
+  transition-duration: 0.16s;
+}
+
+/*
+ * 「新手教学」与计数同进退。
+ *
+ * 提示那句话是横着铺满这一行的，右端坐着一枚按钮时只有两条路：话缩着写，
+ * 或者按钮让开。让开是对的——提示是玩家刚按下去的直接回应，这几秒里
+ * 「再看一遍教学」不是他要找的东西；话说完两样一起回来。
+ *
+ * 淡出期间也不该按得着：opacity 为 0 的按钮仍然接点按，那是一枚看不见的雷。
+ */
+.help {
+  transition:
+    transform 0.06s ease,
+    box-shadow 0.06s ease,
+    opacity 0.46s ease;
+}
+
+.help[data-dimmed='true'] {
+  pointer-events: none;
+}
+
+/*
+ * 通关正反馈：叠在计数原来的槽位上，绝对定位、不占布局高度——
+ * 它的出现不会把刚揭晓的画往下挤，一个像素都不动。
+ */
+.unlock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  /*
+   * 竖直位置：顶栏标题下沿与画的上沿之间的中点，而不是计数槽的正中（理由见 Game.tsx）。
+   *
+   * 两条边由 JS 量出来下发（--unlock-title-gap / --unlock-board-gap，都相对槽中心）；
+   * 量到的画是**上移前**的，所以这里减掉结算时它会走的那段：横竖各半个线索槽里的
+   * 竖向那半个，加上给结算卡让位的抬升。这两个量留在 CSS 里，不在 JS 里抄第二份。
+   * --unlock-card-height 在文字出现时被冻结，避免 WinModal 随后量到安全区高度时
+   * 让已经入场的字样再跳一次。
+   *
+   * 量不到时（测试环境、DOM 还没就绪）两个变量缺省为 0，下移量归零，
+   * 退回从前的「槽正中」——位置不理想，但不会错位。
+   */
+  --unlock-drop: calc(
+    (
+        var(--unlock-title-gap, 0px) + var(--unlock-board-gap, 0px) - var(--clue-gutter-col) / 2 -
+          (var(--unlock-card-height, var(--win-card-height)) - var(--bottom-reserve)) / 2
+      ) / 2
+  );
+  top: 50%;
+  transform: translateY(
+    calc(-50% + var(--unlock-drop) + var(--celebrate-copy-drop))
+  );
+  /*
+   * 这里不挂 filter: blur()。
+   *
+   * 从前整行套一层「从虚到实」的模糊（更早还是五个字各挂各的）。它是全 App
+   * 仅有的一条只在通关时才走到的绘制路径——Skia 程序首次用到才编译，滤镜
+   * 渲染面在字样挂载那一帧才建立。这就是「启动后第一次通关卡一下、之后都
+   * 不卡、杀掉重开又卡」的成因：那笔首次开销正好压在整段结算最挤的一帧上。
+   *
+   * 曾试过在进关卡时用同配方预热，但预热本身能否被光栅从未证实，且建渲染面
+   * 与字形栅格化是每次挂载都要付的——等于给一个本不该存在的开销买单。
+   * 按「流畅优先于特效」直接删掉：入场只剩下面的 opacity + transform，
+   * 这两个属性完全由合成器完成，一次绘制都不产生。
+   */
+}
+
+/*
+ * 逐字入场只留 opacity 与 transform——这两个属性可以完全由合成器完成，
+ * 不触发重绘。从 0.9 倍推到原大，是「迎面而来」而不是弹跳：仍然没有过冲，
+ * 这一拍紧跟着棋盘吸气、又要接上棋盘上移，中间夹一段回弹会把结算切成三截。
+ * 60ms 的字间错位让它读起来是一道扫过去的光，而不是五个字各弹各的。
+ */
+.unlockChar {
+  display: inline-block;
+  /*
+   * 这一句是整局唯一的正反馈，字号与字重都往上顶了一档（23px/800 → 30px/900）：
+   * 它要在一屏只剩一张画的时候压得住场，弱一点就成了说明文字。
+   * 醒目只用字号、字重、颜色去换——不加辉光、不加描边，那些都是绘制开销。
+   */
+  /*
+   * 字号还要按**这句话有多少个字**再收一道。
+   *
+   * 中文「关卡解锁！」是五个字，德语「Bild freigeschaltet!」是二十个字符——
+   * 同一个 30px 下后者有中文那句四倍宽，一行铺出屏幕去。120vw / 字数 是
+   * 「整句大约铺满一屏宽」时每个字能有多大（拉丁字母连字距平均约 0.62em），
+   * 与原来那条按屏高取的一起取小：中文那五个字取值不变（它算出来是 24vw，
+   * 远大于按屏高的那一档），字多的语言才会被这一条压下来。
+   */
+  font-size: clamp(15px, min(calc(3vh + 6px), calc(120vw / var(--char-count, 5))), 30px);
+  font-size: clamp(15px, min(calc(3dvh + 6px), calc(120vw / var(--char-count, 5))), 30px);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: var(--color-accent);
+  /*
+   * 不加 text-shadow、不加描边。两者都是绘制属性，而这一句每次通关都要出现。
+   * 字号 30 + 字重 900 + 字距本身已经够醒目，辉光交给背后的光芒去给。
+   */
+  animation: unlockIn 0.62s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  /* 0.3s 的起拍不写在这里，改由挂载时机给（见 Game.tsx 的 unlockVisible）：
+     延迟只推迟动画、推迟不了 DOM 挂载，而挂载本身就落在最挤的那一帧上。
+     每字的间隔按字数摊：中文五个字仍是 60ms 一个（300/5），二十个字符的德语
+     摊成 15ms——整句浮现的总时长各语言一致，不会因为字多就拖成一段等待 */
+  animation-delay: calc(var(--char-index) * 300ms / var(--char-count, 5));
+}
+
+/*
+ * 视觉居中，而不是几何居中。
+ *
+ * 末字「！」是个全角字形：墨迹只占字身左边一小截，右边是空的。按盒子居中，
+ * 这截空白会被算进去，整行看上去就偏左、右侧空一块。
+ * 把末字的右边距收掉这段空白，居中算的才是墨迹而不是字身。
+ *
+ * 取值 = 末字右侧空白 + 末字后的字距 − 首字左侧边距，全部以 em 计所以随字号缩放。
+ * 在 PingFang SC 上实测：0.672em + 0.12em − 0.047em ≈ 0.745em；
+ * 安卓的思源/Noto 全角叹号空白略窄，取 0.72em 兼顾两边，最差也只差 1px 上下。
+ *
+ * **只有全角叹号的那几个语言**才有这段空白。拉丁语系与韩文收的是半角「!」，
+ * 墨迹本来就贴着字身左边，再收 0.72em 会把它压到前一个字母上。
+ */
+:root:lang(zh-Hans) .unlockChar:last-child,
+:root:lang(zh-Hant) .unlockChar:last-child,
+:root:lang(ja) .unlockChar:last-child {
+  margin-right: -0.72em;
+}
+
+@keyframes unlockIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.9);
+  }
+}
+
+/*
+ * 棋盘这个槽跟教学没有任何关系——这是一条**不变量**，不是省下来的一笔。
+ *
+ * 教学层压在上面，它可以压暗、可以开洞、可以把话摆在没被用到的那一半，
+ * 但它不许动这张画：不许改大小，也不许挪位置。画是这几页要教的东西本身，
+ * 教学一开口它就先动一下，玩家第一眼看到的是「盘怎么跑了」。
+ *
+ * 这条界线是踩出来的。卡片先是被算进 --cell-size 的纵向预算（卡片高一点、
+ * 格子就小一点，中文正好塞得下所以看不出来，日语葡语高出七八个像素就要
+ * 棋盘买单）；改成只挪不改大小之后，一点开教学画仍然往下窜一截——德语
+ * 三十八个像素，中文二十一个——收起来时再窜回去，通关那一帧教学退场也窜。
+ * 让路要花的钱现在全由卡片自己出：它往上让进顶栏那一带（那一带反正被暗幕
+ * 盖着），见 Spotlight 的 fitCard 与 Spotlight.module.css 的 --coach-card-rise。
+ */
+.boardScroll {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  scrollbar-width: none;
+}
+
+.boardScroll::-webkit-scrollbar {
+  display: none;
+}
+
+/*
+ * 裁剪常态放开，而不是等到庆祝态再切。
+ *
+ * 结算背景要铺到棋盘外那片空白上，overflow: hidden 会把它齐边切断露出硬边；
+ * 但把 hidden→visible 放在胜利那一刻切换，等于在最挤的一帧上改一个影响布局
+ * 的属性，整块容器重新布局重绘。棋盘本来就是按可视区算好尺寸的、不会溢出，
+ * 常态放开是安全的。
+ */
+.boardScroll {
+  overflow: visible;
+}
+
+.layout {
+  display: grid;
+  position: relative;
+  grid-template-columns: var(--clue-gutter-row) max-content;
+  grid-template-rows: max-content max-content;
+  justify-content: center;
+  /*
+   * 棋盘按自身高度立着，绝不被同一行里更高的兄弟拉伸。
+   *
+   * grid 项默认 align-self: stretch，而棋盘的高度是 auto（宽度是 max-content，
+   * 因此只有竖向会被拉）。左线索条一旦比棋盘高哪怕 2px，棋盘的边框盒就被拉长，
+   * 多出来的高度摊进 size 个隐式行轨道——每格底下漏出 2/size px 的透明缝。
+   * 对局中这些缝被网格线盖着看不出来，胜利那一刻网格线整体撤下，缝就现形成
+   * 一条条白线，直到揭晓把 canvas 铺满才被盖掉。5×5 上是每行 0.4px（DPR 2 上
+   * 接近一整个物理像素），格子越少越明显。
+   */
+  align-items: start;
+  width: max-content;
+  margin: 0 auto;
+  /*
+   * 上移让位是结算的第三拍，等前面的收束与解锁字样各自站稳了才开始（延迟 0.26s），
+   * 全程 0.9s 缓缓推上去。从前是落幕即刻起步、0.46s 走完，
+   * 画刚停住就被抽走，观感像被系统催着往下走，而不是一段收尾。
+   */
+  transition: transform 0.9s cubic-bezier(0.33, 0, 0.15, 1) 0.26s;
+}
+
+/*
+ * 行完成会给左侧线索加删除线。iOS 16 WebKit 会把这次文字绘制状态变化重新带入
+ * flex 容器的内容高度计算；.layout 又在可用区域中垂直居中，于是盘面看起来每次
+ * 完成线索都会上下挪动。列线索早已有固定 height，行线索此前漏了这一道约束。
+ *
+ * 对局中把 .layout 的第二行和 .rowClues 都钉到棋盘外框的精确高度：格子、×、
+ * 删除线以及高亮都只能在自己的固定槽内重绘，不能再改变布局的高度。庆祝态不套
+ * 这条规则，保留胜利时撤外框并将画居中的既有几何。
+ */
+.game[data-celebrating='false'] .layout {
+  grid-template-columns: var(--clue-gutter-row) var(--board-extent);
+  grid-template-rows: var(--clue-gutter-col) var(--board-extent);
+}
+
+.game[data-celebrating='false'] .rowClues {
+  height: var(--board-extent);
+  overflow: hidden;
+}
+
+/*
+ * 两条线索槽都要补一次棋盘描边的粗细。
+ *
+ * 棋盘的 border 画在自己盒内，格子从边框内沿才开始；而线索槽对齐的是棋盘的
+ * 边框外沿。不补的话每颗药丸的中心比对应格子的中心偏左（列）/偏上（行）
+ * 整整一个边框宽——15×15 上实测 2px，肉眼看得出来。
+ *
+ * 补在 padding 上而不是 margin：槽的外沿仍与棋盘外沿对齐，grid 列宽（=槽宽）
+ * 不变，通关位移与光晕定位的数学一并不受影响。
+ */
+.colClues {
+  display: flex;
+  height: var(--clue-gutter-col);
+  align-items: stretch;
+  grid-column: 2;
+  padding-left: var(--board-border-width);
+}
+
+/* ---------- 通关庆祝态 ---------- */
+
+/*
+ * 胜利那一刻界面从「解题态」切到「欣赏态」：线索和进度计数是解题工具，
+ * 画已经解出来了就该退场，让屏幕上只剩那张画。
+ * 只做 opacity，不动布局——线索仍占着格位，棋盘不会在揭晓开始时跳位、
+ * 把「从手指底下荡开」的起点错开。
+ */
+.game[data-celebrating='true'] .colClues,
+.game[data-celebrating='true'] .rowClues,
+.game[data-celebrating='true'] .progress,
+.game[data-celebrating='true'] .help {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.colClues,
+.rowClues,
+.progress,
+.help {
+  transition: opacity 0.46s ease;
+}
+
+/*
+ * 揭晓落幕后棋盘才移动：线索留下的空槽被抵消掉（横竖各半个 gutter），
+ * 画因而真正落在屏幕中央，同时整体上抬，给底部升起的结算卡腾出位置。
+ * 全程只用 transform，225 个格子不重排。
+ */
+.game[data-settled='true'] .layout {
+  transform: translate(
+    calc(var(--clue-gutter-row) / -2),
+    calc(
+      var(--clue-gutter-col) / -2 - var(--celebrate-lift) + var(--celebrate-art-drop)
+    )
+  );
+}
+
+/*
+ * 通关动画期间把参与合成的几层钉在合成器上。
+ *
+ * 这几层本来就因为各自的动画被自动提升；掉帧不在提升那一下，而在动画结束的
+ * 那一下——提升理由消失，图层被降级、内容重新光栅回父层。backdrop 最贵：
+ * 它连同 ::before 是 1677² 两块、约 560 万设备像素（DPR 3，359×359 CSS px
+ * 的 1.9 倍盒），实测那次降级吃掉 82~115ms，正好落在棋盘上移的后半段——
+ * 也就是肉眼看到的「快停住时又顿一下」。
+ *
+ * 钉子一直留到离开这一局，不中途撤——这一条是试出来的，不是设计出来的。
+ * 撤钉子本身就要付一次降级重光栅，而且这笔钱躲不掉：
+ *   撤在棋盘上移结束（.layout 的 transitionend）  → 165ms，砸在结算卡入场前
+ *   撤在整段结算走完（逐字揭晓结束，约 3.5s）     → 66~148ms
+ *   只钉 backdrop、别的不钉，再撤                 → 66~115ms，且 1.7s/2.1s 各回来一帧
+ * 三种撤法的代价一个量级。唯一免费的时机是离开结算页：DOM 整个卸载，图层
+ * 直接销毁，重新光栅根本不会发生。所以就钉着，等卸载。
+ *
+ * 代价是这几层的纹理（约 30MB）在玩家看结算卡的这几秒里一直占着。按
+ * 「流畅优先」取舍：几秒的显存换掉一次 100ms 级的停顿。
+ *
+ * 实测（PLJ110，360×791 CSS px，DPR 3，同一关卡重玩各 3 次，统计掉帧数）：
+ *   10×10   8/8/8 → 2/1/1，最差单帧 115ms → 33ms
+ *   15×15   7/11/9 → 3/3/4，最差单帧 115ms → 66ms
+ * 作为上限参照，把整个 backdrop 删掉是 1/2/3——钉住几乎吃满了删除能拿到的
+ * 全部收益，而一点视觉都没损失。反过来试过去掉 backdropIn 让它静态常显，
+ * 结果是 6/11/10，比不改还差：拿不到图层，每次父层重绘都得连它一起画。
+ *
+ * 降低动态效果时不启用：那条路径下这些动画本就不存在，没有降级可言，
+ * 而且 .layout 的 transition 被关掉后 transitionend 永远不会来。
+ */
+.game[data-holding-layers='true'] .layout {
+  will-change: transform;
+}
+
+.game[data-holding-layers='true'] .backdrop {
+  will-change: opacity;
+}
+
+.game[data-holding-layers='true'] .backdrop[data-backdrop='rays']::before {
+  will-change: transform;
+}
+
+/*
+ * ---- 临时实验：结算背景（见 settleTrial.ts）----
+ *
+ * 挂在 .layout 内、棋盘之前，因此跟着上移一起走，且天然画在棋盘下方。
+ * 定位要补一个 gutter/2：线索槽占着 .layout 的左上角，画的中心并不是
+ * .layout 的中心，而是偏右下半个槽——不补的话光晕会明显偏左上。
+ * 尺寸跟着画走（cell × size），换尺寸档位不用重调。
+ */
+.backdrop {
+  position: absolute;
+  top: calc(50% + var(--clue-gutter-col) / 2);
+  left: calc(50% + var(--clue-gutter-row) / 2);
+  /*
+   * 边长 = 画的 1.9 倍。原来是 2.5 倍，但渐变在 74% 处就已经全透明，
+   * 最外那圈 26% 是纯粹白光栅的空像素——10×10 在 DPR 3 上每层要多铺
+   * 约 20MB 的透明像素。收到 1.9 倍并把色标按 /0.76 重映射后，
+   * 每一档的观感与原来逐像素一致，光栅面积少 42%。
+   */
+  width: calc(var(--cell-size) * var(--size) * 1.9);
+  height: calc(var(--cell-size) * var(--size) * 1.9);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  /* 揭晓正在进行时不抢戏，等画落位了再亮起来 */
+  animation: backdropIn 1.4s ease 0.25s backwards;
+}
+
+/*
+ * 光芒：柔光之上再加一圈极淡的放射光，缓慢转动。
+ *
+ * 从前它旁边还有「蓝光晕」和「主色晕」两档（同一团柔光，一档取主题蓝、一档取画的
+ * 主色）。设置里只留「简洁 / 光芒」之后那两块规则没有任何选择走得到，一并撤了。
+ * 静态的晕是「亮着」，转动的光芒是「在发光」——奖励感最强的一种，
+ * 也最容易过火，所以透明度压到 0.07，一圈要转一分钟。
+ */
+.backdrop[data-backdrop='rays'] {
+  background: radial-gradient(
+    closest-side,
+    rgba(var(--color-accent-rgb), 0.2),
+    rgba(var(--color-accent-rgb), 0.07) 60.5%,
+    rgba(var(--color-accent-rgb), 0) 97.4%
+  );
+}
+
+/*
+ * 放射光那一层：持续缓慢旋转，60s 转满一圈。
+ *
+ * 这道转动是这个方案的立意所在——静止的放射纹只是「亮着」，转起来才是「在发光」。
+ * 中途曾被改成转 24° 即停、又彻底静止，理由是它参与逐帧合成；那次归因是错的，
+ * 真正的首次卡顿来自解锁字样的 filter: blur()（见 db2aaa4），与转动无关。
+ *
+ * 转动本身只动 transform：合成器线程独立完成，不触发任何重绘。60s 一圈是
+ * 每秒 6°，慢到读不出「在转」，只留下光在缓缓呼吸的感觉。
+ *
+ * 这里从前写着「不加 will-change：transform 动画本来就会自动提升，显式声明
+ * 只会让纹理提前分配，把别的图层挤出瓦片缓存」。前半句没错——真机图层树里
+ * 这一层确实被自动提升了；但它漏掉了另一头：动画一结束，提升的理由随之消失,
+ * 图层被降级、内容重新光栅回父层，那一下就是掉帧。will-change 现在加了，
+ * 但只在动画期间加，见下面的 data-holding-layers。
+ */
+.backdrop[data-backdrop='rays']::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-conic-gradient(
+    from 0deg,
+    rgba(var(--color-accent-rgb), 0.07) 0deg 5deg,
+    rgba(var(--color-accent-rgb), 0) 5deg 24deg
+  );
+  /* 光芒从画的边缘之外才开始，中心留空，不在画底下透出条纹 */
+  mask-image: radial-gradient(closest-side, transparent 34%, #000 60.5%, transparent 100%);
+  -webkit-mask-image: radial-gradient(closest-side, transparent 34%, #000 60.5%, transparent 100%);
+  animation: raysSpin 60s linear infinite;
+}
+
+@keyframes raysSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes backdropIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .colClues,
+  .rowClues,
+  .progress,
+  .help,
+  .layout {
+    transition: none;
+  }
+
+  .unlockChar,
+  .hintNote {
+    animation: none;
+  }
+
+  .backdrop {
+    animation-name: backdropIn;
+    animation-duration: 0.01s;
+  }
+
+  .backdrop[data-backdrop='rays']::before {
+    animation: none;
+  }
+
+}
+
+.rowClues {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  grid-column: 1;
+  min-width: 0;
+  padding-top: var(--board-border-width);
+}
+
+/* ── 「重新开始」确认面板的正文（面板本身见 ConfirmSheet） ────── */
+
+.restartTitle {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.restartMeta {
+  margin-top: 3px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tall result cards on short screens must leave the whole collected picture visible. */
+.game[data-compact-win] .layout {
+  transform-origin: calc(50% + var(--clue-gutter-row) / 2) calc(50% + var(--clue-gutter-col) / 2);
+}
+.game[data-compact-win][data-settled='true'] .layout {
+  transform: translate(calc(var(--clue-gutter-row) / -2), var(--win-fit-shift)) scale(var(--win-fit-scale));
+}
+.game[data-compact-win] .unlock {
+  top: var(--win-fit-copy-top);
+  transform: translateY(-50%);
+}
+
+/*
+ * 网页试玩版：对局的尺度随视口的宽裕度**连续**变化，没有「大屏模式」这道门槛。
+ *
+ * --demo-room 由 Game.tsx 写在 .page 上（config/demo.ts 的 demoRoom：视口短边 480
+ * 以下是 0、840 起是 1，中间线性），JS 那头按同一个数把线索槽与基准字号乘
+ * 1 + 0.6 × 宽裕度。这里配套四件，每一件都是宽裕度的线性函数，拖窗口时一起慢慢走；
+ * 只是这几件在短边 720 处就到顶（--demo-reach = min(1, 宽裕度 × 1.5)）——
+ * 操作条与格子封顶不必等到全屏，线索才要一路长到全屏：
+ *
+ *   1. 操作条：手机那档 44px 起长到桌面的 60px；与正式版那条按高宽比算的公式取
+ *      大者——高手机上正式版本来就给 60，不能被这条压回去。
+ *   2. 格子封顶各抬一档（72/44/32 → 80/52/36）：线索放大后格子不跟着放，比例又
+ *      倒回去。
+ *   3. 纵向预算按上槽的**真实**高度扣，不再按「四格」估：桌面上纵向才是瓶颈，
+ *      估多的每一像素都从格子上扣；手机横过来那档估少了还会让棋盘顶到操作条。
+ *      正式版那条公式不动。
+ *   4. 对局那一栏放宽到 640：10×10 放到 52px 时盘面加左槽超过 560。
+ */
+:global(html[data-demo]) .page {
+  --demo-reach: min(1, calc(var(--demo-room, 0) * 1.5));
+  --action-tile-size: max(
+    clamp(44px, calc(44px + 11.111dvh - 12.222dvw), 60px),
+    calc(44px + 16px * var(--demo-reach))
+  );
+  --action-bar-gap: max(
+    clamp(12px, calc(12px + 6.944dvh - 7.639dvw), 22px),
+    calc(12px + 10px * var(--demo-reach))
+  );
+  --action-bottom-gap: max(
+    clamp(12px, calc(12px + 18.056dvh - 19.861dvw), 38px),
+    calc(12px + 12px * var(--demo-reach))
+  );
+  /* 纵向：顶栏一带（--game-fixed-vertical）+ 操作条预留 + 上槽 + 棋盘描边与余量 */
+  --demo-board-height: calc(
+    var(--game-viewport-height) - var(--game-safe-top) - var(--game-safe-bottom) -
+      var(--game-fixed-vertical) - var(--bottom-reserve) - var(--clue-gutter-col) - 8px
+  );
+  /* 横向：与三档共用的那条，只是不再各抄一遍 */
+  --demo-board-width: calc(
+    var(--game-viewport-width) - var(--game-safe-left) - var(--game-safe-right) -
+      var(--game-side-reserve) - var(--clue-gutter-row) - 24px
+  );
+}
+
+:global(html[data-demo]) .game {
+  max-width: calc(560px + 80px * var(--demo-reach, 0));
+}
+
+:global(html[data-demo]) .game[data-size='5'] {
+  --cell-size-raw: min(
+    calc(72px + 8px * var(--demo-reach, 0)),
+    calc(var(--demo-board-width) / 5),
+    calc(var(--demo-board-height) / 5)
+  );
+}
+
+:global(html[data-demo]) .game[data-size='10'] {
+  --cell-size-raw: min(
+    calc(44px + 8px * var(--demo-reach, 0)),
+    calc(var(--demo-board-width) / 10),
+    calc(var(--demo-board-height) / 10)
+  );
+}
+
+:global(html[data-demo]) .game[data-size='15'] {
+  --cell-size-raw: min(
+    calc(32px + 4px * var(--demo-reach, 0)),
+    calc(var(--demo-board-width) / 15),
+    calc(var(--demo-board-height) / 15)
+  );
+}

@@ -1,0 +1,96 @@
+/* 按需资源没拉到时压在底部的一条。见 RetryNotice.tsx */
+
+.stack {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* 比确认面板（40）还高：出岔子时这一条是唯一的出口，不许被任何一层盖住 */
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px calc(12px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+  /* 容器本身不吃点击：底下那一层照常能点，只有条子自己是实的 */
+  pointer-events: none;
+}
+
+.notice {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(520px, 100%);
+  padding: 12px 14px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-float);
+  animation: noticeRiseIn 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.message {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+/* 与更新弹窗、确认面板同一套按法：圆角矩形、下沿一道厚边、按下陷进去 */
+.retry,
+.dismiss {
+  min-height: 38px;
+  padding: 9px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  box-shadow: 0 var(--press-depth) 0 var(--press-shade);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--color-text);
+  transition: transform 0.06s ease, box-shadow 0.06s ease;
+}
+
+.retry {
+  background: linear-gradient(180deg, #4a91f7, #3b82f6);
+  border-color: transparent;
+  box-shadow: 0 var(--press-depth) 0 var(--press-shade-accent);
+  color: #fff;
+}
+
+/* 按下：`data-pressed` 与 `:active` 并列（见 src/utils/uiHaptics.ts） */
+.retry:active,
+.retry[data-pressed],
+.dismiss:active,
+.dismiss[data-pressed] {
+  transform: translateY(calc(var(--press-depth) - var(--press-sunk)));
+  box-shadow: 0 var(--press-sunk) 0 var(--press-shade);
+}
+
+.retry:active,
+.retry[data-pressed] {
+  box-shadow: 0 var(--press-sunk) 0 var(--press-shade-accent);
+}
+
+/* 正在重试：按钮压平、不再接手势，字也换成「重试中…」 */
+.retry:disabled {
+  transform: none;
+  box-shadow: 0 var(--press-sunk) 0 var(--press-shade-accent);
+  opacity: 0.7;
+}
+
+@keyframes noticeRiseIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}

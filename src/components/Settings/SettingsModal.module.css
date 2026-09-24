@@ -1,0 +1,589 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: var(--color-scrim);
+  animation: fadeIn 0.2s ease;
+}
+
+/*
+ * 从底部升起的面板，不是屏幕正中的方块：设置项有七八条，做成居中弹窗要么
+ * 挤成小字、要么盖住整屏还得留一圈没用的空白。贴着底边升起既够高，
+ * 又让「关掉它就回到刚才那一屏」这件事看得见。
+ */
+.sheet {
+  width: min(520px, 100%);
+  max-height: 88vh;
+  max-height: 88dvh;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  border-radius: 22px 22px 0 0;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-float);
+  animation: riseIn 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  /* 下拉手势松手后弹回原位；跟手期间由 JS 把 transition 临时设成 none */
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  /* 顶部这一段交给下拉关闭，不让浏览器拿去做滚动 */
+  touch-action: none;
+}
+
+/* 可以往下拽走的那道横杠。这个手势没有别的提示物，缺了它就只能靠猜 */
+.grabber {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 4px;
+  margin: 9px auto 0;
+  border-radius: 999px;
+  background: var(--color-line);
+}
+
+/*
+ * 退场：入场那两条各自倒过来放，时间比入场短一点——推开一扇门要看清它开了，
+ * 关上只需要知道它关了。曲线也换成加速的那条：升起来是「稳稳落位」，
+ * 撤下去是「顺势滑走」。
+ *
+ * 退场期间面板本身不再接受操作，但底下这层遮罩仍旧挡着：这几帧里的点按既不该
+ * 再改设置，也不该穿过去落在棋盘上。
+ */
+.overlay[data-closing] {
+  animation: fadeOut 0.24s ease forwards;
+}
+
+/*
+ * 不写 from：起点就取动画开始那一刻的实际位置。下拉关闭时行内 transform 停在
+ * 手指松开的地方，面板于是从那里继续往下走，而不是先跳回原位再滑走。
+ */
+.sheet[data-closing] {
+  animation: sinkOut 0.24s cubic-bezier(0.32, 0, 0.67, 0) forwards;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .sheet,
+  .overlay[data-closing],
+  .sheet[data-closing] {
+    animation: none;
+  }
+}
+
+.header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px 12px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.title {
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.close {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-clue-bg);
+  color: var(--color-text-muted);
+  line-height: 0;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.close svg {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  display: block;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 4px 20px 26px;
+  /*
+   * 纵向滚动一律交给浏览器，不按方向细分。
+   *
+   * 这里曾按「在顶时」改成 touch-action: pan-up，想把往下拉那一半留给关闭手势。
+   * 那是个死锁：pan-up 放行的是**滚向顶部**的那个方向，而内容已经在顶部，
+   * 于是两个方向都动不了——面板一进来就滚不动，且 data-at-top 要靠滚动事件
+   * 才会翻，永远翻不过来。
+   *
+   * 下拉关闭因此完全由指针事件判断（落指时 scrollTop 是否为 0），不再向浏览器
+   * 争夺方向。内容在顶时往下拉本来就没有可滚的东西，overscroll-behavior: none
+   * 连本地的过卷效果一起关掉，这一下不会被当成滚动，指针事件照常送到。
+   * 万一某个平台仍把它算作滚动，收到的是 pointercancel——那一路只是不关面板，
+   * 滚动始终是好的。顶部那道横杠（touch-action: none）任何情况下都能起手，是兜底。
+   */
+  touch-action: pan-y;
+  overscroll-behavior: none;
+}
+
+.section + .section {
+  margin-top: 30px;
+}
+
+.section {
+  padding-top: 16px;
+}
+
+/* 模块名用主题蓝：它是这一屏唯一的分段标记，灰掉就等于没有 */
+.sectionTitle {
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--color-accent);
+}
+
+.row {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.section .row:last-child {
+  border-bottom: 0;
+}
+
+.rowHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.label {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* 分段选择：一整块圆角矩形，选中的那一格浮起来 */
+.segments {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-md);
+  background: var(--color-clue-bg);
+}
+
+.segment {
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+  transition: color 0.1s ease, background-color 0.1s ease, box-shadow 0.1s ease,
+    transform 0.1s ease;
+}
+
+.segment.on {
+  color: var(--color-accent);
+  background: var(--color-raised);
+  box-shadow: 0 1px 3px var(--shadow-tint);
+}
+
+/*
+ * 按下去当场有反应。
+ *
+ * 选中态要等一次渲染才挪，而手指落下到松开之间已经过去十几帧——那段时间里
+ * 按钮一动不动，就是「点了没反应」的来源。这一档只说「收到了」，不表达选中：
+ * 未选中的那几枚压一层极淡的底并把字提亮，已选中的那枚只轻轻缩一下（它本来
+ * 就是白底，再换底色反而像被取消了）。
+ */
+.segment:active,
+.segment[data-pressed] {
+  transform: scale(0.95);
+}
+
+.segment:not(.on):active,
+.segment:not(.on)[data-pressed] {
+  background: var(--color-slot-faint);
+  color: var(--color-text);
+}
+
+.row[data-disabled] {
+  opacity: 0.42;
+}
+
+/*
+ * 语言：平时折成一行，点开才铺出那片小卡。
+ *
+ * 折着的那一行整行可点（44px 命中区），右边一枚箭头，点开时翻个身。
+ * 展开的网格：跟随系统独占第一行，其余九个按列宽自动折行——375 宽上三列
+ * （九个正好三行），320 宽上两列，列数由 minmax 定，不写媒体查询。
+ * 选中的那张与分段控件选中的那一格同一副样子（浮起来、主题蓝）：灰底上一张白卡，
+ * 不必再加勾。
+ */
+.disclosure {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  margin: -6px 0;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  color: var(--color-text);
+}
+
+.chevron {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: var(--color-text-muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.disclosure[aria-expanded='true'] .chevron {
+  transform: rotate(180deg);
+}
+
+.languageGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+  padding: 6px;
+  border-radius: var(--radius-md);
+  background: var(--color-clue-bg);
+  /* 从那一行底下展开来，不是凭空出现 */
+  animation: unfold 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: top;
+}
+
+@keyframes unfold {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .languageGrid {
+    animation: none;
+  }
+}
+
+.languageOption {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  /* 44px 是这一屏上按钮命中区的下限（见 2026-09-09 安卓 UX 检查 UX02） */
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  color: var(--color-text-muted);
+  transition: color 0.1s ease, background-color 0.1s ease, box-shadow 0.1s ease,
+    transform 0.1s ease, opacity 0.2s ease;
+}
+
+.languageOption[data-system] {
+  grid-column: 1 / -1;
+  padding-inline: 12px;
+}
+
+.languageOption[aria-pressed='true'] {
+  color: var(--color-accent);
+  background: var(--color-raised);
+  box-shadow: 0 1px 3px var(--shadow-tint);
+}
+
+.languageOption[data-busy] {
+  opacity: 0.6;
+}
+
+/* 与分段控件同一套按下反馈：收到了，但还没说选中 */
+.languageOption:active,
+.languageOption[data-pressed] {
+  transform: scale(0.96);
+}
+
+.languageOption:not([aria-pressed='true']):active,
+.languageOption:not([aria-pressed='true'])[data-pressed] {
+  background: var(--color-slot-faint);
+  color: var(--color-text);
+}
+
+.languageText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.languageName {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+/* 跟随系统底下那行小字：它此刻认成了哪个语言 */
+.languageSub {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--color-text-muted);
+}
+
+/* 完整版那一段：左边一句状态，右边（未解锁时）一枚恢复购买 */
+.fullGameRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--color-clue-bg);
+}
+
+.fullGameStatus {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.fullGameStatus[data-owned] {
+  color: var(--color-accent);
+}
+
+/* 44px 是这一屏上按钮命中区的下限（见 2026-09-09 安卓 UX 检查 UX02） */
+.fullGameRestore {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.fullGameRestore:disabled {
+  opacity: 0.55;
+}
+
+.fullGameNotice {
+  margin: 8px 2px 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+/* 关于那一列：外链和版本号都是同一种普通行，左边一句字，右边一个箭头或一个值 */
+.aboutList {
+  margin-top: 24px;
+  padding-bottom: 2px;
+  border-top: 1px solid var(--color-slot-faint);
+}
+
+/* 链接和按钮共用（去评分是 button：它不是一个 URL，是一次跳出去），外观要一模一样 */
+.aboutRow {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  padding: 14px 0;
+  font-size: 14px;
+  color: var(--color-text);
+  text-align: left;
+  text-decoration: none;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--color-slot-faint);
+  border-radius: 0;
+}
+
+.aboutRow:hover {
+  color: var(--color-text);
+}
+
+.aboutArrow {
+  color: var(--color-text-muted);
+  font-size: 22px;
+  line-height: 1;
+}
+
+/* 版本号那个值：右对齐、等宽数字，和别处的数字同一副面孔 */
+.aboutValue {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.versionList {
+  margin: 10px 0 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--color-clue-bg);
+}
+
+.versionRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 16px;
+  padding: 5px 0;
+  font-size: 12px;
+}
+
+.versionRow dt {
+  color: var(--color-text-muted);
+}
+
+.versionRow dd {
+  min-width: 0;
+  margin: 0;
+  text-align: right;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.versionRow code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11.5px;
+}
+
+.dirty {
+  display: inline-block;
+  margin-left: 7px;
+  color: var(--color-gold);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+/* 整块从屏幕下方推上来，与「贴着底边升起」这件事本身一致 */
+@keyframes riseIn {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes fadeOut {
+  to {
+    opacity: 0;
+  }
+}
+
+/* 原路退回屏幕下方 */
+@keyframes sinkOut {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+/* ── 审核通道（连点版本号 7 下才露出来，见 ReviewAccess.tsx） ────────── */
+.reviewSection {
+  margin-top: 18px;
+}
+
+.reviewHint,
+.reviewGranted {
+  margin: 8px 2px 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.reviewGranted {
+  flex: 1 1 auto;
+  margin: 0;
+  color: var(--color-accent);
+}
+
+.reviewRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--color-clue-bg);
+}
+
+.reviewInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 15px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: 0.02em;
+}
+
+/* 44px 是这一屏上按钮命中区的下限（见 2026-09-09 安卓 UX 检查 UX02） */
+.reviewButton {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.reviewButton:disabled {
+  opacity: 0.55;
+}
+
+.reviewError {
+  margin: 8px 2px 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-danger);
+}
+
+/* 版本号本身是那个入口：看上去与别处的值毫无二致，摸上去才有区别 */
+.versionTap {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}

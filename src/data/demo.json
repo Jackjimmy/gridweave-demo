@@ -1,0 +1,52 @@
+{
+  "albums": [
+    {
+      "id": "festive-tales",
+      "emblem": "easy-01-heart",
+      "levels": [
+        "easy-01-heart",
+        "d0016-diamond",
+        "easy-09-toy-car",
+        "d0302-star",
+        "easy-08-airplane",
+        "easy-05-moon"
+      ]
+    },
+    {
+      "id": "sweet-shop",
+      "emblem": "d0095-cupcake",
+      "levels": [
+        "d0095-cupcake",
+        "d0388-macaron",
+        "d0652-pudding",
+        "medium-128-cookie",
+        "medium-129-donut",
+        "d0469-apple-pie"
+      ]
+    },
+    {
+      "id": "deep-blue",
+      "emblem": "d0060-jellyfish",
+      "levels": [
+        "d0295-shrimp",
+        "d0441-seaweed",
+        "d0642-eel",
+        "d0060-jellyfish",
+        "medium-114-whale",
+        "d0248-seal"
+      ]
+    },
+    {
+      "id": "sky-beyond",
+      "emblem": "hard-01-rocket",
+      "levels": [
+        "d0436-jet-fighter",
+        "hard-01-rocket",
+        "d0213-space-shuttle",
+        "hard-56-space-station",
+        "hard-54-astronaut",
+        "hard-55-ufo-abduction"
+      ]
+    }
+  ]
+}

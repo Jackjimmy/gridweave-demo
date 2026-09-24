@@ -1,0 +1,283 @@
+/*
+ * 藏品陈列页。
+ *
+ * 底色是这一本画册的封面色，画法与首页那一格书封一致（同一组 --album-* 变量，
+ * 见 global.css）：一层织纹压在一层上浓下淡的色上。整页共用它，从书架那一格
+ * 走到这一幅画，颜色是连着的。
+ *
+ * 深封面的那一本（天空之上）在 global.css 里把浓度顶到接近满色、并另给一套
+ * 浅色字与浅色描边；这一页所有的字与线因此一律读 --album-ink / --album-ring
+ * 这类变量，浅色本走兜底值，深色本自动翻过来。
+ */
+/*
+ * 整页钉死在一屏高（height 而不是 min-height）：只有容器高度是定的，
+ * 中间那幅画才有「收」的余地（见 .stage / .mat）。这一页不该滚。
+ */
+.page {
+  --page-gutter: 22px;
+  max-width: 520px;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0 auto;
+  padding: calc(var(--back-inset-y) + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)))
+    calc(var(--page-gutter) + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)))
+    calc(16px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))
+    calc(var(--page-gutter) + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
+  display: flex;
+  flex-direction: column;
+  background:
+    repeating-linear-gradient(
+        135deg,
+        var(--album-weave, rgba(var(--album-rgb), 0.06)) 0 1px,
+        transparent 1px 7px
+      ),
+    linear-gradient(
+      168deg,
+      rgba(var(--album-rgb), var(--album-wash-top)),
+      rgba(var(--album-rgb), var(--album-wash-mid)) 54%,
+      rgba(var(--album-rgb), var(--album-wash-foot))
+    ),
+    var(--color-bg);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+}
+
+/* 与我的收藏、对局页顶栏同一枚返回，落在同一个横坐标上（见 tokens.css） */
+.back {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  margin-left: calc(var(--back-inset-x) - var(--page-gutter));
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.12s ease;
+}
+
+.back:active,
+.back[data-pressed] {
+  background: var(--color-accent-soft);
+}
+
+@media (hover: hover) {
+  .back:hover {
+    background: var(--color-accent-soft);
+  }
+}
+
+.back svg {
+  display: block;
+  flex: 0 0 auto;
+}
+
+/*
+ * 页名一行到底。
+ *
+ * 顶栏三样是并排的：返回、页名、右端那块计数。页名折成两行会把整条顶栏顶高，
+ * 底下整页跟着往下挪一截——中文的「我的收藏」四个字一行绰绰有余，
+ * 换成「Meine Sammlung」就正好差一点。所以放不下就收字号
+ * （useFitOneLine，与册页上关卡名同一套做法）；收到下界仍放不下才省略。
+ */
+.title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 21px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--album-ink, var(--color-text));
+}
+
+/*
+ * 字距按书写系统分开给：0.08em 是给中日韩那几个字的舒展，同样的值摊在
+ * 「Meine Sammlung」十三个字母上就是白白多占一截——十三个字母乘 0.08em，
+ * 光字距就吃掉十几个像素，把本来放得下的一行挤到要收字号。
+ */
+:root:lang(en) .title,
+:root:lang(de) .title,
+:root:lang(fr) .title,
+:root:lang(es) .title,
+:root:lang(pt-BR) .title {
+  letter-spacing: 0.02em;
+}
+
+/*
+ * 名字、画、那几行小字合成一块，在顶栏与「再次游玩」之间的高度里居中。
+ *
+ * 从前底下压着一截 7vh 的留白，想让画落得偏上一点；藏品页多出「章节」那一行
+ * 之后，这截留白在 667px 高的屏上直接把整页顶出一屏——留白是给富余的高度
+ * 用的，高度不富余时它得先让。现在这一块的余量全在 .mat 上：屏矮就缩画。
+ *
+ * 它自己是滚动容器，有两层用意：一是滚动容器的自动最小高度是 0，画才缩得动
+ * （否则 aspect-ratio 会把画按宽度算出的 320px 记成这一块的最小高度，
+ * 整块一步都缩不了）；二是极端情形（画已缩到下限、名字又折成三行）由它
+ * 自己滚，「再次游玩」钉在底下不动。居中不用 justify-content 而用两端的
+ * auto 外边距（见 .name / .meta）：有富余时两边平分，装不下时归零，
+ * 顶上那截不会被裁到滚不出来。
+ *
+ * 左右向外撑到页边：卡纸的阴影往外散 16px，容器不撑开会把阴影裁掉。
+ */
+.stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 calc(-1 * var(--page-gutter));
+  padding: 0 var(--page-gutter) 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/*
+ * 名字在画的上方，是这一页除画之外最重的一处。
+ *
+ * 两行谁在上由语言决定，不由这里决定（见 i18n/content 的 puzzleDisplayName）：
+ * 中日韩是英文大字压本地小字，英文与德法西葡只有主名一行。所以两个类名叫
+ * 主名 / 副名，而不是中文 / 英文——同一个盒子在不同语言里装的是不同的字。
+ */
+.name {
+  flex: 0 0 auto;
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: clamp(16px, 3.2vh, 26px);
+  text-align: center;
+}
+
+/*
+ * 主名。中日韩下装的是英文词，德法西葡下装的是本地名——后者可以很长
+ * （「Bacteriófago T4」「Wasserstoffperoxid」这一类），所以允许折行并允许
+ * 在词内断开：这一页高度富余，多一行比切掉半个词好。
+ */
+.namePrimary {
+  max-width: 100%;
+  font-size: clamp(26px, 8.2vw, 36px);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  color: var(--album-ink, var(--color-text));
+}
+
+/* 副名：只有中日韩有，装的是本地语言的名字 */
+.nameSecondary {
+  max-width: 100%;
+  font-size: clamp(14px, 3.8vw, 17px);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  overflow-wrap: anywhere;
+  color: var(--album-ink-soft, var(--color-text-muted));
+}
+
+/*
+ * 卡纸。画不直接贴在色块上——一圈留白把它从底色里托起来，
+ * 与首页封面画那一圈细环是同一个做法。
+ *
+ * 尺寸由高度定，不由宽度定：这一页只有它能伸缩。宽度写 auto，正方形靠
+ * aspect-ratio 从高度换算过来；高度在 200～320px 之间随剩余空间走——
+ * 375×667 那一档缩到 300，375×812 满 320。200px 是下限：再小就不像一幅
+ * 「陈列」的画了，宁可让整页滚动（见 .page）。
+ */
+.mat {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: min(100%, 320px);
+  min-height: 200px;
+  max-height: 320px;
+  aspect-ratio: 1;
+  padding: 10px;
+  border-radius: 20px;
+  /* 卡纸与那一圈细线跟首页封面画共用同两个变量，深色主题与深封面都自动跟着翻 */
+  border: 1px solid var(--album-ring, rgba(var(--album-rgb), 0.3));
+  background: var(--album-mat, var(--color-raised));
+  box-shadow: 0 18px 34px -18px var(--shadow-tint), 0 2px 6px var(--shadow-tint);
+}
+
+/* 高度也封顶：万一某个引擎收了卡纸的高却没跟着收宽，画至少不会戳出卡纸 */
+.art {
+  display: block;
+  width: 100%;
+  max-height: 100%;
+  aspect-ratio: 1;
+  margin: 0 auto;
+  border-radius: 12px;
+}
+
+/* dl 自带的 16px 下外边距换成 auto：与 .name 的上外边距一起把整块居中 */
+.meta {
+  flex: 0 0 auto;
+  margin: clamp(18px, 3.4vh, 28px) 0 auto;
+  width: min(100%, 320px);
+  display: grid;
+  gap: 9px;
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--album-ring, rgba(var(--album-rgb), 0.3));
+  font-size: 14px;
+}
+
+.row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.row dt {
+  color: var(--album-ink-soft, var(--color-text-muted));
+  letter-spacing: 0.06em;
+}
+
+.row dd {
+  color: var(--album-ink, var(--color-text));
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 一整页里只有这一枚蓝，不算突兀：它是这一页唯一能按的东西。
+ * 造型跟全站那套走——圆角矩形 + 下沿实色厚边，按下时下沉。
+ */
+.replay {
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 52px;
+  padding: 13px 20px;
+  border: 0;
+  border-radius: var(--radius-card);
+  background: linear-gradient(180deg, #4a91f7, #3b82f6);
+  box-shadow: 0 var(--press-depth) 0 var(--press-shade-accent);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.replay:active,
+.replay[data-pressed] {
+  transform: translateY(calc(var(--press-depth) - var(--press-sunk)));
+  box-shadow: 0 var(--press-sunk) 0 var(--press-shade);
+}
+
+.replay:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 2px;
+}

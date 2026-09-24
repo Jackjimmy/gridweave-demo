@@ -1,0 +1,145 @@
+/* 横纵线索使用同一视觉组件：相同底色、圆角、边距和字重，仅排列方向不同。 */
+.clue {
+  display: flex;
+  gap: min(var(--clue-gap), calc(var(--cell-size) * 0.12));
+  font-size: clamp(
+    8px,
+    min(calc(var(--clue-font) * var(--clue-font-scale)), var(--clue-fit-font)),
+    var(--clue-font)
+  );
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: var(--clue-line-height);
+  color: var(--color-text);
+  background: var(--color-clue-bg);
+  /*
+   * 一圈发丝描边收住形状，压得很轻：线索框是辅助件，它的职责是不做木桶的
+   * 短板，不是把自己做成一个物件。没有顶沿内高光，也没有渐变——那两样试过，
+   * 会开始争视线。
+   *
+   * 描边用 spread 阴影而不是 border：border 会挤占内容盒，clueLayout 的
+   * 轴向预算就得跟着改；阴影画在盒外，尺寸一分不动。
+   *
+   * 落影是有方向的，写在下面各自的 .rowClue / .colClue 里。
+   */
+  /*
+   * 槽与槽之间的那道缝用 margin，不用「和底色同色的 2px 边框」——
+   * 缝就是缝，不必伪装成边框再配 background-clip 把底色收回去，
+   * 而假边框还会把外投影吃掉：阴影落在自己的 border 上等于没画。
+   * 4px 的总占位不变，clueLayout 的 BORDER_BUDGET_PX 仍然对得上。
+   */
+  margin: 2px;
+  border-radius: min(7px, calc(var(--cell-size) * 0.24));
+  /*
+   * 只过渡 background-color。描边与落影是静态的——box-shadow 参与过渡意味着
+   * 拖动十字每跨一格都要重画一圈模糊，那是拿手感换质感。
+   */
+  transition: background-color 0.1s ease, opacity 0.15s ease;
+}
+
+/* 同 Board.module.css：拖动中十字高亮每跨一格也要翻两条线索条的底色，
+   摘掉那条过渡。淡出用的 opacity 过渡留着——它属于庆祝态，与拖动无关。 */
+[data-dragging] .clue {
+  transition: opacity 0.15s ease;
+}
+
+/*
+ * 尺寸在各自轴内统一：所有行框同宽、所有列框同高，左边和上边各自留一条直边。
+ * 宽度由 .rowClues 的 stretch 给满左槽，高度扣掉上下 margin。
+ *
+ * 两条轴分工不同，别再拿一套规则套两边：
+ *   交叉轴（列框的横向、行框的竖向）居中——align-items: center，这是整齐的来源；
+ *   主轴（列框的竖向、行框的横向）一律贴棋盘那一端——数织靠「最后一个数字
+ *   紧挨着格子」对位，主轴上居中真机实测反而更乱，别再试第二次。
+ */
+/*
+ * 落影沿着各自那条轴的排列方向投：行线索朝下、列线索朝右，影子因此都落进
+ * 药丸之间那 2px 的缝里，两条轴都看得见。
+ *
+ * 别把列线索也改成朝下——它下面紧挨着棋盘那圈 2px 黑描边，影子压上去毫无
+ * 对比度，等于没画，真机上就是「上侧那行根本看不出来」。这是 A/B 实测的结论。
+ */
+.rowClue {
+  box-shadow: 0 0 0 0.5px var(--shadow-hairline), 0 1px 2px var(--shadow-hairline-cast);
+  flex: 0 0 calc(var(--cell-size) - 4px);
+  height: calc(var(--cell-size) - 4px);
+  min-height: 0;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 var(--clue-padding-axis);
+}
+
+.colClue {
+  box-shadow: 0 0 0 0.5px var(--shadow-hairline), 1px 0 2px var(--shadow-hairline-cast);
+  min-width: 0;
+  min-height: 0;
+  width: calc(var(--cell-size) - 4px);
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: var(--clue-padding-axis) 0;
+}
+
+.clue > span {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  transition: color 0.15s ease, opacity 0.15s ease;
+}
+
+/*
+ * 两位数内部适度收紧，保持数字成组且不粘连；segment 之间的 gap 不受影响。
+ *
+ * padding-right 是负字距的补偿，不是留白：CSS 的字距加在**每个**字符之后，
+ * 末位那一份也算进元素盒，于是盒子比字形墨迹窄 0.16em，居中时整块数字右偏半格
+ * （90px 字号实测偏 7.24px = 0.08em，线索的 10~12px 字号上约 1px，肉眼可见）。
+ * 补回被吃掉的这一格，盒中心与墨中心重合；两个方向的居中都靠它。
+ */
+.multiDigit {
+  letter-spacing: -0.16em;
+  padding-right: 0.16em;
+}
+
+.segmentSatisfied {
+  color: var(--color-text-muted);
+  opacity: 0.55;
+}
+
+/*
+ * 完成态的横线不能再用 text-decoration。
+ *
+ * 目标复现点「街机」第 11 行 / 第 13 列（11 与 14）会在一次落子里同时让两条
+ * 单段线索完成或取消完成。iOS 16 WebKit 会把 text-decoration 的开关带回父级
+ * flex 项的固有尺寸计算；即使视觉上的行高没变，居中的棋盘仍会被重新摆一次，
+ * 看上去就像上下浮动。
+ *
+ * 横线改由绝对定位的伪元素绘制：颜色和透明度仍有原来的视觉反馈，但它完全不进入
+ * 文本行盒或 flex 尺寸计算。整线完成时每个数字本来都会得到 segmentSatisfied，
+ * 所以无需再把装饰类挂到外层 .clue 容器。
+ */
+.segmentSatisfied::after {
+  content: '';
+  position: absolute;
+  left: -0.04em;
+  right: -0.04em;
+  top: 52%;
+  height: 1px;
+  background: currentColor;
+  pointer-events: none;
+}
+
+.highlighted {
+  background-color: var(--color-accent-soft);
+}
+
+/*
+ * 提示点亮的那一条线索。比十字高亮重一档，还多一圈描边：十字是「手指在这儿」，
+ * 提示是「就看这一条」，两者可能同时在场，压成同一个亮度就分不出谁在说话。
+ *
+ * 描边同样走 spread 阴影，理由与上面的发丝描边一样——border 会挤占内容盒，
+ * clueLayout 的轴向预算得跟着改。
+ */
+.hinted {
+  background-color: rgba(var(--color-accent-rgb), 0.3);
+  box-shadow: 0 0 0 1.5px rgba(var(--color-accent-rgb), 0.55);
+}

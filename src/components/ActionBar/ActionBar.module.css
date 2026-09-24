@@ -1,0 +1,285 @@
+/*
+ * 底部操作条。三块并排：重新开始 · 模式 · 撤销，同料同高。
+ * 造型跟着首页那套走——圆角矩形 + 1px 描边 + 下沿一道实色厚边，按下时下沉
+ * （位移与厚度之和恒定，看起来才是「压下去」）。所以这里不用悬浮投影，
+ * 也不用胶囊圆角：全站的可按压元素长一个样，本身就是一种说明。
+ */
+.bar {
+  position: fixed;
+  z-index: 20;
+  /* 非对称挖孔也按真正安全内容区居中，而不是机械钉在物理屏幕中心。 */
+  left: calc(50% + (var(--game-safe-left, 0px) - var(--game-safe-right, 0px)) / 2);
+  bottom: calc(
+    var(--action-bottom-gap, 38px) +
+      var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))
+  );
+  transform: translateX(-50%);
+  display: flex;
+  /* 三块同高，按底边对齐——那道厚边连成一条线才是一整排 */
+  align-items: flex-end;
+  gap: var(--action-bar-gap, 22px);
+  transition: opacity 0.28s ease, transform 0.28s ease;
+  /* 方块按钮的边长；模式条的两个位子也是这个尺寸 */
+  /* 总宽 = 4 × tile + 两段动态大间距 + 模式内缝。
+     正常手机保持 60px；矮屏、窄屏或侧边安全区较大时同步收缩。 */
+  --tile-size: min(
+    var(--action-tile-size, 60px),
+    clamp(
+      42px,
+      calc(
+        (var(--game-viewport-width, 100vw) - var(--game-safe-left, 0px) -
+              var(--game-safe-right, 0px) - 72px) / 4
+      ),
+      60px
+    )
+  );
+}
+
+/* 通关后沉下去退场，底部让给结算卡 */
+.bar[data-hidden='true'] {
+  opacity: 0;
+  transform: translate(-50%, 130%);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar {
+    transition: none;
+  }
+}
+
+/* ── 重新开始 / 撤销：等边圆角矩形 ─────────────────── */
+
+.tile {
+  display: grid;
+  place-items: center;
+  width: var(--tile-size);
+  height: var(--tile-size);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: 0 var(--press-depth) 0 var(--press-shade);
+  color: var(--color-text);
+  transition: transform 0.06s ease, box-shadow 0.06s ease, opacity 0.12s ease;
+}
+
+.tile:active:not(:disabled),
+.tile[data-pressed]:not(:disabled) {
+  transform: translateY(calc(var(--press-depth) - var(--press-sunk)));
+  box-shadow: 0 var(--press-sunk) 0 var(--press-shade);
+}
+
+/* 没有可撤销的一笔时只是淡下去：厚边照给，行的高度不跳 */
+.tile:disabled {
+  opacity: 0.38;
+  color: var(--color-text-muted);
+}
+
+.glyph {
+  display: block;
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── 模式条：两个位子，一枚牌在中间滑 ─────────────────── */
+
+/*
+ * 没有槽、没有外框：两枚图标直接落在页面上，底下压着一枚牌——白面、1px 描边、
+ * 同一道下沿厚边——和左右两个按钮一模一样的料。于是这一排就是三块同料同高的
+ * 东西，区别只在中间那块会走。
+ *
+ * 当前模式因此不靠底色或描边去说，而是「实心的那块牌现在压在哪个图标下面」。
+ * 少一层槽的底与影，也少一次「凹进去的东西里又浮起一个东西」的自相矛盾。
+ */
+.modes {
+  /*
+   * 两个落点之间那道缝。滑块的宽度与落点都由它算出来，改这一个值就够，
+   * 不必把间距在别处再抄一遍。
+   */
+  --gap: 4px;
+
+  position: relative;
+  display: flex;
+  gap: var(--gap);
+  /* 横向拖动归这条轨道，别被当成页面滚动拿走 */
+  touch-action: none;
+}
+
+/*
+ * 滑块。位置由 --slot 驱动：静止时由下面的 data-mode 给出，跟手时由 JS 逐帧
+ * 写像素值（那一路会把 transition 临时关掉）。
+ */
+.thumb {
+  --slot: 0px;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  /* 100% 是两个位子加中间那道缝，减掉缝再对半就是一个位子 */
+  width: calc((100% - var(--gap)) / 2);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: 0 var(--press-depth) 0 var(--press-shade);
+  transform: translate(var(--slot), 0);
+  transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* translate 的百分比按滑块自己的宽算，正好是一个位子——再加那道缝就是另一个落点 */
+.modes[data-mode='fill'] .thumb {
+  --slot: calc(100% + var(--gap));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thumb {
+    transition: none;
+  }
+}
+
+.option {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: var(--tile-size);
+  height: var(--tile-size);
+  border: 0;
+  border-radius: var(--radius-card);
+  background: transparent;
+  color: var(--color-text-muted);
+  transition: color 0.16s ease, opacity 0.16s ease;
+}
+
+/*
+ * 当前那一格只换图标颜色，底与影都在牌上。图标本身不做别的变化——
+ * 填色那枚小方块是棋盘填充格的直接引用，把它翻成别的颜色就断了这层对应，
+ * 而填色恰是进关卡的默认模式。
+ */
+.option.active {
+  color: var(--color-fill);
+}
+
+/* 没被牌压着的那一枚退到底噪：它是「另一个位子」，不是第二个按钮 */
+.option:not(.active) {
+  opacity: 0.5;
+}
+
+@media (hover: hover) {
+  .option:not(.active):hover {
+    color: var(--color-fill);
+    opacity: 1;
+  }
+}
+
+.icon {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+}
+
+/* 填色：实心圆角方块，与棋盘填充格同色 */
+.iconFill {
+  border-radius: 6px;
+  background: currentColor;
+}
+
+/* 标记：加粗 × */
+.iconMark::before,
+.iconMark::after {
+  content: '';
+  position: absolute;
+  top: 10.5px;
+  left: 0;
+  width: 24px;
+  height: 3px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.iconMark::before {
+  transform: rotate(45deg);
+}
+
+.iconMark::after {
+  transform: rotate(-45deg);
+}
+
+/*
+ * 近正方形 / 更宽的矮屏：三块工具改在安全内容区左侧竖排。
+ * 中间模式块也转成纵轨，四个实际触控落点仍保持同样大小。
+ */
+@media (min-aspect-ratio: 5 / 6) {
+  .bar {
+    left: calc(10px + var(--game-safe-left, 0px));
+    top: calc(
+      50% +
+        (
+            var(--game-safe-top, 0px) - var(--game-safe-bottom, 0px)
+          ) / 2
+    );
+    bottom: auto;
+    flex-direction: column;
+    align-items: flex-start;
+    transform: translateY(-50%);
+  }
+
+  .bar[data-hidden='true'] {
+    transform: translate(-130%, -50%);
+  }
+
+  .modes {
+    flex-direction: column;
+  }
+
+  .thumb {
+    right: 0;
+    bottom: auto;
+    width: 100%;
+    height: calc((100% - var(--gap)) / 2);
+    transform: translate(0, var(--slot));
+  }
+}
+
+/*
+ * 网页试玩版（html[data-demo]）：不矮的横屏上操作条**仍在底部**，与手机上一个样。
+ *
+ * 上面那档「三块工具竖排到左侧」是给近正方形的矮屏省纵向空间用的；网页横屏
+ * 多半是桌面浏览器，纵向并不紧，而换一个位置就等于让玩家在两端各学一遍操作条。
+ * 真正矮的窗口（手机横过来、桌面浏览器压到半高）仍走上面那档到左侧。
+ * 查询与 Game.module.css 里那条一字不差，「矮」的判据写在那里。
+ */
+@media (min-aspect-ratio: 5 / 6) and (max-aspect-ratio: 13 / 5) and (min-height: 421px) {
+  :global(html[data-demo]) .bar {
+    left: calc(50% + (var(--game-safe-left, 0px) - var(--game-safe-right, 0px)) / 2);
+    top: auto;
+    bottom: calc(
+      var(--action-bottom-gap, 38px) +
+        var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))
+    );
+    flex-direction: row;
+    align-items: flex-end;
+    transform: translateX(-50%);
+  }
+
+  :global(html[data-demo]) .bar[data-hidden='true'] {
+    transform: translate(-50%, 130%);
+  }
+
+  :global(html[data-demo]) .modes {
+    flex-direction: row;
+  }
+
+  :global(html[data-demo]) .thumb {
+    right: auto;
+    bottom: 0;
+    width: calc((100% - var(--gap)) / 2);
+    height: auto;
+    transform: translate(var(--slot), 0);
+  }
+}

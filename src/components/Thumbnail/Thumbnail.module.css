@@ -1,0 +1,39 @@
+/*
+ * 缩略图是一张 size×size 的 canvas（一格一个像素），由 CSS 放大到卡片尺寸。
+ * pixelated 保证放大后仍是锐利的方块，而不是插值糊开的色斑——同一个诉求
+ * ArtImage 用 crispEdges、揭晓层用整数物理像素对齐，各自绕过一次。
+ *
+ * 为什么是挂进页面的 canvas 而不是背景图，见 Thumbnail.tsx：背景图的 data: URL
+ * 在 WebKit 里异步解码，首帧没有画。
+ *
+ * 替换元素的绘制矩形按整设备像素取整，元素自己的底色却带抗锯齿，格子落在小数
+ * 边界上时两者会差不到一个像素——那条缝里露出来的是这个元素**自己的底色**。
+ * 所以有场景（铺满）的那张不给自己任何底色：就算差半个像素，露出来的也只是
+ * 它后面本来就有的东西（收藏墙上是格与格之间那道缝的颜色）；收藏墙另把格宽
+ * 按整设备像素取（见 CollectionGrid），边正好落在像素边界上，连这半个像素也没有。
+ */
+.thumbnail {
+  display: block;
+  aspect-ratio: 1;
+  /* 卡纸：留白那一圈，画只铺在里面（有场景时 padding 为 0，见下） */
+  padding: 4px;
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
+  image-rendering: pixelated;
+}
+
+/*
+ * 画还没到：一块与画好的那张同样大小的空白牌。
+ *
+ * 不画骨架条纹、不转圈——原生上根本看不到这一态（全库开机取齐），
+ * 网页端弱网也只是几百毫秒，一个动起来的加载态反而会让人以为出了什么事。
+ */
+.pending {
+  background: var(--color-clue-bg);
+}
+
+/* 有场景时是一张整图：去掉留白与底色，否则会被卡纸框出一圈边（成因见文件头） */
+.scenic {
+  padding: 0;
+  background: transparent;
+}

@@ -1,0 +1,30 @@
+{
+  "groups": {
+    "探索发现": "探索と発見",
+    "日常生活": "日々の暮らし",
+    "精选合集": "厳選コレクション",
+    "自然世界": "自然の世界"
+  },
+  "albums": {
+    "deep-blue": "深く青い海",
+    "festive-tales": "祝祭とおとぎ話",
+    "sky-beyond": "空の彼方へ",
+    "sweet-shop": "スイーツショップ"
+  },
+  "sections": {
+    "deep-blue/down-and-down": "どこまでも潜る",
+    "festive-tales/prologue": "軽やかな序章",
+    "sky-beyond/farther-out": "さらに外へ",
+    "sweet-shop/shop": "店をひとまわり"
+  },
+  "chapters": {
+    "deep-blue/down-and-down/big-ones": "大きな生きもの",
+    "deep-blue/down-and-down/shallows": "浅瀬",
+    "deep-blue/down-and-down/shapes-in-deep": "深みの影",
+    "sky-beyond/farther-out/in-orbit": "軌道上で",
+    "sky-beyond/farther-out/last-beam": "最後のひと筋の光",
+    "sky-beyond/farther-out/leaving-ground": "地を離れて",
+    "sweet-shop/shop/cake-window": "ケーキのショーケース",
+    "sweet-shop/shop/from-the-oven": "焼きたて"
+  }
+}

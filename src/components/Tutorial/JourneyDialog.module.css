@@ -1,0 +1,19 @@
+.dialog {
+  width: min(420px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 28px 22px 22px;
+  border: 1px solid var(--color-line);
+  border-radius: 22px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-float);
+}
+.dialog::backdrop { background: var(--color-scrim); }
+.dialog h2 { padding-right: 20px; font-size: 21px; line-height: 1.4; }
+.dialog p { margin-top: 14px; color: var(--color-text-muted); font-size: 14px; line-height: 1.7; }
+.close { position: absolute; right: 6px; top: 6px; width: 44px; height: 44px; border: 0; background: transparent; color: var(--color-text-muted); font-size: 24px; }
+.actions { display: grid; gap: 10px; margin-top: 22px; }
+.actions button { min-height: 48px; border-radius: 12px; border: 1px solid var(--color-line); padding: 12px; font: inherit; font-weight: 700; color: var(--color-text); background: var(--color-surface); }
+.actions .primary { background: var(--color-accent); color: white; border-color: transparent; }
+.dialog button:focus-visible { outline: 3px solid var(--color-accent); outline-offset: 3px; }

@@ -1,0 +1,78 @@
+/*
+ * 画墙：解开的画拼成一整片，格与格之间只隔一条细缝（透出页面底色）。
+ * 缝多宽由 CollectionGrid.tsx 从 shelfLayout.ts 的 COLLECTION_GAP 写进 --collection-gap，
+ * 这里不写死数字——首页收藏架拿同一个数算行高，两处一旦各写一份就会对不上。
+ *
+ * 不给每张图套白卡片——那层白边在这个尺寸上要吃掉近一半面积，而这一片的
+ * 全部意义就是让人一眼看到自己解开了多少幅画。四角统一收圆，整片是一块砖墙。
+ *
+ * 底下不垫那层整块的凹槽底色：凹槽是"位置"的语言，画得越少露得越多；
+ * 这里要的是"这些是我画的"，边界应该长在最后一幅画上，而不是画到一半的框上。
+ */
+.grid {
+  display: grid;
+  /* 格宽由 CollectionGrid.tsx 量成整数 CSS 像素写进 --collection-cell（理由见那里）；量不到时 1fr */
+  grid-template-columns: repeat(var(--collection-columns), var(--collection-cell, 1fr));
+  /* 取整剩下的零头分到两侧（同上，整数） */
+  padding-left: var(--collection-inset, 0px);
+  box-sizing: border-box;
+  gap: var(--collection-gap);
+  align-content: start;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.cell {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  aspect-ratio: 1;
+  /*
+   * 格子自己不铺底色：卡纸那一圈由缩略图自己画（Thumbnail 的 padding + 底色），
+   * 铺满的画则一直铺到格边。格子要是也铺一层，画的边与格的边差半个像素时
+   * 露出来的就是这层底色（见 Thumbnail.module.css）。
+   */
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+}
+
+/* 解锁库里每幅画都是重玩入口；按下只给反馈，真正重玩仍需底部面板二次确认 */
+.cell[data-interactive='true'] {
+  cursor: pointer;
+  transition: filter 0.1s ease, transform 0.1s ease;
+}
+
+.cell[data-interactive='true']:active,
+.cell[data-interactive='true'][data-pressed] {
+  z-index: 1;
+  filter: brightness(0.9);
+  transform: scale(0.94);
+}
+
+.cell[data-interactive='true']:focus-visible {
+  z-index: 2;
+  outline: 3px solid var(--color-accent);
+  outline-offset: -3px;
+}
+
+.art {
+  width: 100%;
+  height: 100%;
+  /* 缩略图自带圆角，在这一片里要抹平，缝才读得出是一条线而不是间距 */
+  border-radius: 0;
+}
+
+/*
+ * 还没到跟前的那一段：一行一个占位，格子一个都不摆（见 dormant）。
+ *
+ * grid-column: 1 把它钉死在第一列，自动放置于是一行只放得下一个、逐行往下排；
+ * aspect-ratio: 1 让它与一个格子同高。整段高度因此与摆满格子时分毫不差——
+ * 画补上来的那一刻不会顶得下面的内容跳一下。
+ */
+.rowSpacer {
+  grid-column: 1;
+  aspect-ratio: 1;
+}

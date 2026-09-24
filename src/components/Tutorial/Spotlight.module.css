@@ -1,0 +1,357 @@
+/*
+ * 压暗四周、只留一块亮的，旁边摆一张说话的卡片。
+ *
+ * 两处用它：新手教学的教练层（认东西的几页压暗，动手的几页只剩卡片），
+ * 以及第一次进 10×10 / 15×15 时那句「这是一张更大的盘」。同一件事就该
+ * 长成同一个样子——从前后者是一张居中的对话框，把整个界面挡在身后，
+ * 玩家读完也没看见自己要面对的是什么。
+ *
+ * 整层压在底部操作条（z-index: 20）之上——认按钮那几页连操作条也要一起压暗，
+ * 否则一屏里最显眼的三块永远亮着，「现在看这一块」就说不清了。
+ */
+.coach {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  /* 层本身不接点按：动手的几页要把整个界面漏给玩家。要接的各自打开 */
+  pointer-events: none;
+}
+
+/*
+ * 压暗层。这个元素本身是透明的，暗的是它外面那一圈 100vmax 的阴影——
+ * 一个元素就把整屏压暗并留出一个洞，既不用给几十个格子各挂一层滤镜，
+ * 也不会和它们自己的状态样式打架。圆角与那一圈主题色描边是白送的：
+ * 阴影从圆角外沿起算。
+ */
+.veil {
+  position: fixed;
+  border-radius: 13px;
+  box-shadow:
+    0 0 0 2px rgba(var(--color-accent-rgb), 0.55),
+    0 0 0 100vmax rgba(7, 10, 18, 0.66);
+  /* 换步时平移过去而不是闪一下：视线跟着这个框走，就知道下一句在说哪一块 */
+  transition:
+    top 0.34s cubic-bezier(0.33, 0, 0.15, 1),
+    left 0.34s cubic-bezier(0.33, 0, 0.15, 1),
+    width 0.34s cubic-bezier(0.33, 0, 0.15, 1),
+    height 0.34s cubic-bezier(0.33, 0, 0.15, 1);
+}
+
+/*
+ * 开场那一下慢慢压下来，将近一秒。
+ *
+ * 从前是 0.3s：进关卡的同一瞬间屏幕就黑了大半，第一次玩的人还没看清界面
+ * 长什么样，就先被吓一跳。现在让他先看见完整的棋盘，暗幕再缓缓合上，
+ * 卡片随后升起（见 .card[data-intro]）——这一秒是留给他反应的。
+ */
+.veil[data-intro='true'] {
+  animation: veilIn 0.9s cubic-bezier(0.33, 0, 0.15, 1) both;
+}
+
+@keyframes veilIn {
+  from {
+    opacity: 0;
+  }
+}
+
+/*
+ * 只讲不做的几页：整屏接管点按，点哪儿都是继续。
+ *
+ * 把「下一步」缩进一枚小按钮里，第一次玩的人要先找到它——而这几页他本来就
+ * 没有别的事可做。卡片上仍然有一枚「继续」，那是给「该往哪按」一个答案，
+ * 不是唯一的入口。
+ */
+.catcher {
+  position: fixed;
+  inset: 0;
+  border: 0;
+  background: transparent;
+  pointer-events: auto;
+}
+
+/*
+ * 说话的卡片随语言换行。高矮之差由卡片自己吸收（见下面的落点），
+ * 不摊到棋盘头上。
+ */
+.card {
+  position: fixed;
+  z-index: 2;
+  left: 12px;
+  right: 12px;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 12px 14px 10px;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-float);
+  pointer-events: auto;
+  animation: cardIn 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  /* 高度上限由 Spotlight 现量下发（见 fit）。够高时它不写，这里就是自然高 */
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * 话装在这里，按钮不装。
+ *
+ * 短屏和横屏上，画和卡片有时确实分不出两份地方来：320×480 的德语尺寸说明
+ * 要一百八十几个像素，画上面只剩九十。那时候卡片被压到剩下的那点高度里，
+ * 让出来的是这一块——话滚着读；底下那行「跳过 / 继续」在外面，一步不让。
+ * 只给整张卡片一个 overflow 是不行的：先滚没的正是那枚要按的按钮。
+ */
+.body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* 这儿也不写 -webkit-overflow-scrolling：理由见 AlbumPage.module.css 的 .pager，
+     那条老路上「滚动中不画将要露出来的内容、scrollLeft/Top 中途不更新」两样都坏。
+     这一块是背景带 local/scroll 两种附着的滚动框，正是老路上最容易露馅的写法。 */
+  /* 滚动条不占位：这张卡片本来就窄，多两三个像素就要多折一行 */
+  scrollbar-width: none;
+  /*
+   * 下面还有话没读完时，末行上面浮一道很浅的影子；读到底就自己没了。
+   *
+   * 滚动条既已藏起，被切掉的那一行是唯一的线索——而它有时正好切在段落之间，
+   * 看上去就是「说完了」。这里不写脚本：前两层是随内容滚动的遮片（local），
+   * 后两层是钉在框上的影子（scroll），滚到顶／底时遮片正好压住对应那道影子。
+   */
+  background:
+    linear-gradient(var(--color-surface) 60%, rgba(0, 0, 0, 0)) top / 100% 12px no-repeat local,
+    linear-gradient(rgba(0, 0, 0, 0), var(--color-surface) 40%) bottom / 100% 12px no-repeat local,
+    radial-gradient(farthest-side at 50% 0, rgba(15, 23, 42, 0.16), rgba(0, 0, 0, 0)) top / 100% 5px
+      no-repeat scroll,
+    radial-gradient(farthest-side at 50% 100%, rgba(15, 23, 42, 0.16), rgba(0, 0, 0, 0)) bottom /
+      100% 5px no-repeat scroll;
+}
+
+.body::-webkit-scrollbar {
+  display: none;
+}
+
+/* 开场：等暗幕合上大半再升起来，两件事不挤在同一拍里 */
+.card[data-intro='true'] {
+  animation: cardIn 0.34s cubic-bezier(0.22, 1, 0.36, 1) 0.5s backwards;
+}
+
+/*
+ * 卡片站在哪儿：一个缺省的落点，加上一笔「让开画」的位移。
+ *
+ * 缺省落点是上面让开顶栏（44px 的按钮排 + 页面上边距）、下面离屏底 8px。
+ * 文案一长，卡片就会长到画身上——那时候让路的是卡片，不是画：往上再抬
+ * （--coach-card-rise）。抬到顶就是安全区，绝不钻到刘海底下。这个数由
+ * Spotlight 量出来下发，整轮只算一次，所以翻页时卡片也不会跟着文案的长短上下跳。
+ * 下面那一档没有可让的余地：它的落点本来就贴着安全区往上 8px，再往下就压到
+ * Home Indicator 上了。那一档挤不下就整轮换到上面来（见 Spotlight 的 lift）。
+ *
+ * 抬到顶仍然差着的那一截，由 Spotlight 现量下发一个 max-height 收掉，
+ * 让出来的是 .body。
+ *
+ * 为什么宁可盖住顶栏也不动画：这几页压暗的正是顶栏那一带，本来就看不清，
+ * 而画是这几页要教的东西本身，它一动，玩家第一眼看到的就是「盘怎么跑了」。
+ */
+.card[data-place='bottom'] {
+  bottom: calc(8px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+}
+
+.card[data-place='top'] {
+  top: calc(
+    58px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)) -
+      var(--coach-card-rise, 0px)
+  );
+}
+
+/*
+ * 整屏居中的大卡（首页导览的欢迎页）。
+ *
+ * 用 translate 而不是 transform 居中：入场动画 cardIn 动的是 transform，
+ * 两者写在同一个属性上，动画一开始就把居中那一半冲掉了。高度上限直接写在
+ * CSS 里，不走 Spotlight 现量的让路——这一页指着的是顶上的字标，卡片
+ * 本来就站在它下面，没有要让的画。
+ */
+.card[data-place='center'] {
+  /* 略低于正中：这一页聚光打在顶上的字标，卡片上沿要让开它那一圈亮区 */
+  top: 55%;
+  translate: 0 -50%;
+  max-height: min(66vh, 560px);
+}
+
+/*
+ * 欢迎卡：字多一点、行距松一点，底下铺一幅很淡的画（见 .texture）。
+ * 圆角要剪住底纹，所以这里 overflow: hidden；话仍在 .body 里滚。
+ */
+.card[data-variant='welcome'] {
+  padding: 18px 18px 14px;
+  overflow: hidden;
+}
+
+.card[data-variant='welcome'] .title {
+  font-size: 20px;
+  margin-bottom: 4px;
+}
+
+.card[data-variant='welcome'] .line {
+  margin-top: 8px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--color-text);
+  /* 一段里的换行照文案原样断（「4 本画册 · 100 关」那两行是一对，隔成两段就散了） */
+  white-space: pre-line;
+}
+
+.card[data-variant='welcome'] .body {
+  position: relative;
+  z-index: 1;
+  /* 底纹要透过来：滚动那两道遮片是实色的，会在字的上下各压出一条白带，这里撤掉 */
+  background: none;
+}
+
+.card[data-variant='welcome'] .foot {
+  position: relative;
+  z-index: 1;
+  margin-top: 12px;
+}
+
+/*
+ * 那幅画按卡片的宽铺一整幅（15×15 的位图，一格一像素靠 pixelated 放大，
+ * 一格二十几个像素，认得出是宇航员），居中偏上，压到很淡：它是底纹，
+ * 不是插图，字要一眼读得清。上面再罩一层白的渐变，字最密的中段更淡一点。
+ */
+.texture {
+  position: absolute;
+  inset: 0;
+  background-size: 100% auto;
+  background-repeat: no-repeat;
+  background-position: center 40%;
+  image-rendering: pixelated;
+  opacity: 0.13;
+  pointer-events: none;
+}
+
+.texture::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.1),
+    rgba(255, 255, 255, 0.45) 50%,
+    rgba(255, 255, 255, 0.1)
+  );
+}
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.title {
+  font-size: 16.5px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--color-text);
+}
+
+.line {
+  margin-top: 3px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.foot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 9px;
+}
+
+/* 底下只有一枚按钮时（尺寸说明那一页）靠右站，别一个人杵在左边 */
+.foot[data-align='end'] {
+  justify-content: flex-end;
+}
+
+.skip {
+  flex: 0 0 auto;
+  padding: 4px 2px;
+  border: 0;
+  background: transparent;
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+
+/* 游戏说明那页卡底的一句「点任意处关闭」：它不是按钮，只是告诉人怎么出去 */
+.dismissHint {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.dots {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dots > span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-slot);
+  transition: background-color 0.24s ease;
+}
+
+/* 走过的点一路留着颜色：卡片上因此看得出「还剩几步」，而不只是「第几步」 */
+.dots > span[data-on='true'] {
+  background: var(--color-accent);
+}
+
+/* 「继续」，与全站可按压元素同一造型（圆角矩形 + 下沿实色厚边） */
+.next {
+  flex: 0 0 auto;
+  padding: 7px 15px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #4a91f7, #3b82f6);
+  box-shadow: 0 var(--press-depth) 0 var(--press-shade-accent);
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+  transition: transform 0.06s ease, box-shadow 0.06s ease;
+}
+
+.next:active,
+.next[data-pressed] {
+  transform: translateY(calc(var(--press-depth) - var(--press-sunk)));
+  box-shadow: 0 var(--press-sunk) 0 var(--press-shade-accent);
+}
+
+/* 轮到玩家动手时按钮的位子上摆的是进度，不是按钮——这一步要靠涂才走得掉 */
+.turn {
+  flex: 0 0 auto;
+  padding: 7px 4px;
+  font-size: 13.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .veil,
+  .veil[data-intro='true'] {
+    transition: none;
+    animation: none;
+  }
+
+  .card,
+  .card[data-intro='true'] {
+    animation: none;
+  }
+
+  .dots > span {
+    transition: none;
+  }
+}

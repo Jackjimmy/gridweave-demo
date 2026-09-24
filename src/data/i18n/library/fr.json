@@ -1,0 +1,30 @@
+{
+  "groups": {
+    "探索发现": "Explorer & découvrir",
+    "日常生活": "Vie quotidienne",
+    "精选合集": "Sélection",
+    "自然世界": "Nature & faune"
+  },
+  "albums": {
+    "deep-blue": "Grand bleu",
+    "festive-tales": "Fêtes & fables",
+    "sky-beyond": "Vers le ciel",
+    "sweet-shop": "Pâtisserie"
+  },
+  "sections": {
+    "deep-blue/down-and-down": "De plus en plus bas",
+    "festive-tales/prologue": "Prologue léger",
+    "sky-beyond/farther-out": "Encore plus loin",
+    "sweet-shop/shop": "Un tour de la boutique"
+  },
+  "chapters": {
+    "deep-blue/down-and-down/big-ones": "Les grands",
+    "deep-blue/down-and-down/shallows": "En eau peu profonde",
+    "deep-blue/down-and-down/shapes-in-deep": "Formes des profondeurs",
+    "sky-beyond/farther-out/in-orbit": "En orbite",
+    "sky-beyond/farther-out/last-beam": "Un dernier rayon",
+    "sky-beyond/farther-out/leaving-ground": "Quitter le sol",
+    "sweet-shop/shop/cake-window": "La vitrine à gâteaux",
+    "sweet-shop/shop/from-the-oven": "Tout juste sorti du four"
+  }
+}

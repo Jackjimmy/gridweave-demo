@@ -1,0 +1,32 @@
+<!doctype html>
+<!-- lang 由 src/i18n 在开机定语言时改写；这里的 en 只是首帧之前的占位 -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/app-icon-rounded.png" />
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon-app-rounded.ico" />
+    <link rel="apple-touch-icon" href="/app-icon-rounded.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Nonogram</title>
+    <script>
+      /* 首帧之前定主题：等 React 挂载再写 data-theme，深色用户会先吃到一闪的白。
+         逻辑必须与 src/utils/settings.ts 的 resolveTheme 一致。 */
+      (function () {
+        try {
+          var raw = localStorage.getItem('nonogram:settings')
+          var pref = raw ? JSON.parse(raw).theme : 'system'
+          if (pref !== 'light' && pref !== 'dark') {
+            pref = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+          }
+          document.documentElement.dataset.theme = pref
+        } catch (e) {
+          document.documentElement.dataset.theme = 'light'
+        }
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

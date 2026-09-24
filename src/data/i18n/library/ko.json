@@ -1,0 +1,30 @@
+{
+  "groups": {
+    "探索发现": "탐험과 발견",
+    "日常生活": "일상생활",
+    "精选合集": "엄선 컬렉션",
+    "自然世界": "자연 세계"
+  },
+  "albums": {
+    "deep-blue": "깊고 푸른 바다",
+    "festive-tales": "축제와 이야기",
+    "sky-beyond": "하늘 너머",
+    "sweet-shop": "디저트 가게"
+  },
+  "sections": {
+    "deep-blue/down-and-down": "계속 내려가다",
+    "festive-tales/prologue": "가벼운 서장",
+    "sky-beyond/farther-out": "더 멀리 바깥으로",
+    "sweet-shop/shop": "가게 한 바퀴"
+  },
+  "chapters": {
+    "deep-blue/down-and-down/big-ones": "덩치 큰 것들",
+    "deep-blue/down-and-down/shallows": "얕은 물에서",
+    "deep-blue/down-and-down/shapes-in-deep": "깊은 곳의 그림자",
+    "sky-beyond/farther-out/in-orbit": "궤도 위에서",
+    "sky-beyond/farther-out/last-beam": "마지막 한 줄기 빛",
+    "sky-beyond/farther-out/leaving-ground": "땅을 떠나",
+    "sweet-shop/shop/cake-window": "케이크 진열장",
+    "sweet-shop/shop/from-the-oven": "갓 구운"
+  }
+}

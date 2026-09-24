@@ -1,0 +1,50 @@
+/* 1A 绶带花章：以 120px 封面画上的 26px 底片、20px 图标为比例基准。
+   首页封面随视口缩小，主题页封面随列宽变化，花章都跟着封面画等比缩放。
+
+   尺寸走 --award-size 而不是写死：封面上那一枚仍按封面画的百分比走（缺省值），
+   进度那一行里的那一枚由用处给一个像素值。用变量而不是让外面的类去盖 width，
+   是因为两边都是单类选择器，谁赢要看两份模块样式的先后——那不该由打包顺序决定。 */
+.award {
+  position: absolute;
+  box-sizing: border-box;
+  width: var(--award-size, 21.6667%);
+  height: var(--award-size, 21.6667%);
+  border-radius: 26.9231%;
+  color: #a67c2c;
+  background: #fffaf0;
+  box-shadow: 0 1px 3px rgba(50, 38, 20, 0.14);
+  pointer-events: none;
+}
+
+/*
+ * 没有底片的那一枚：进度那一行里用。
+ *
+ * 白底片是给封面画准备的——花章压在一幅画上，不垫一块底就糊在画里。而进度这一行
+ * 底下是书的封面色，一块白片摆上去只会像贴了张贴纸，所以这里透明底、无投影。
+ *
+ * 属性选择器而不是再加一个类：它与 .award 在同一份样式里，特异度高一档，
+ * position 这类基类已经写过的声明才盖得住，不必依赖两条规则的先后。
+ */
+.award[data-plain] {
+  position: relative;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+/* 宽高显式相对底片计算（20/26），不依赖 WebKit 的 SVG 固有尺寸。
+   绝对定位居中，避免百分比 padding 按外层封面宽度计算。 */
+.icon {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  display: block;
+  width: 76.9231%;
+  height: 76.9231%;
+}
+
+/* 没有底片就不必再留那一圈边距，图标铺满给定的尺寸 */
+.award[data-plain] .icon {
+  width: 100%;
+  height: 100%;
+}

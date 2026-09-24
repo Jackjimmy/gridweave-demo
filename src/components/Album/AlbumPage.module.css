@@ -1,0 +1,720 @@
+.page {
+  width: 100%;
+  max-width: 520px;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0 auto;
+  /* 让最外两列与屏幕边缘保持明确呼吸感；也把相邻章节的卡片拉开。 */
+  --page-gutter: 28px;
+  padding: calc(var(--back-inset-y) + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)))
+    calc(var(--page-gutter) + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)))
+    calc(32px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))
+    calc(var(--page-gutter) + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+}
+
+.back {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  /* 退回页边距，让箭头落在与对局页顶栏同一个横坐标上，见 tokens.css */
+  margin-left: calc(var(--back-inset-x) - var(--page-gutter));
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  /* 与关卡内顶栏同一枚返回：主题蓝，按下浮出一层浅底 */
+  color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.12s ease;
+}
+
+.back:active,
+.back[data-pressed] {
+  background: var(--color-accent-soft);
+}
+
+@media (hover: hover) {
+  .back:hover {
+    background: var(--color-accent-soft);
+  }
+}
+
+.back svg {
+  display: block;
+  flex: 0 0 auto;
+}
+
+/* 长书名保留完整内容；顶栏随换行增高，正文区域按剩余空间布局。 */
+.title {
+  min-width: 0;
+  flex: 1 1 auto;
+  font-size: clamp(15px, 5vw, 21px);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* 进度牌：与首页「我的收藏」、收藏页里那两枚同一个模子——8px 圆角的小方牌，
+   不是胶囊。三处显示的是同一件事（已解锁 / 总数），从前只有这一枚是药丸 */
+.count {
+  position: relative;
+  flex: 0 0 auto;
+  overflow: hidden;
+  padding: 4px 11px;
+  border-radius: var(--radius-sm);
+  background: var(--color-line);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.countFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--color-accent-soft);
+}
+
+.countText {
+  position: relative;
+}
+
+.countText b {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--color-accent);
+}
+
+/* 翻页交给原生 scroll-snap：跟手、惯性、回弹都在合成器上，主线程不掺和。
+   整条通栏出血到屏幕两边，页边距挪进每一页里——不然翻页时上一页的最右一列
+   会和下一页的最左一列贴死，看着像一整条没断过。
+
+   横竖两轴分给两层容器：pager 只横向、每一页只纵向。从前两轴挂在同一个滚动
+   容器上，一次斜着的拖动能同时喂给两轴，松手时 WebKit 常常不落回任何一页，
+   pager 就停在两页之间——屏幕上是上一页的最右一列贴着下一页的最左几列。
+   拆开之后一次手势只可能被一个滚动容器接走，要么翻页，要么滚动本页。 */
+.pager {
+  /* 基准是 0 而不是 auto：auto 会拿「此刻挂着的那几页」的内容高当基准参与列的
+     求解，于是翻到内容更高的一页时，多出来的那点高度要从别人身上找补——顶栏
+     在矮屏上可以缩（见下面 max-height: 700px 那档的 min-height: 38px），于是
+     它让出 1.05px，整条 pager 连同满屏卡片跟着上移一格。手指正横着拖的时候
+     这一下尤其显眼。每一页本来就自己滚（grid-auto-rows: 100% + 页内 overflow-y），
+     内容多高都不该由 pager 替它背，基准归零后这条列的解就只跟剩余空间有关。 */
+  flex: 1 1 0;
+  min-height: 0;
+  /* 每一轨严格等于滚动视口宽度；比 flex 百分比在旧版 WKWebView 中更稳定。 */
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 100%;
+  /* 那一行严格等于 pager 的高：每一页都是满高的纵向滚动容器，
+     内容再长也由页内自己消化，不会把 pager 撑出第二根纵轴。 */
+  grid-auto-rows: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  /* 只挡住双指缩放；走哪一轴由「谁能滚」决定，不由 touch-action 决定。 */
+  touch-action: pan-x pan-y;
+  /*
+   * **这里不要写 `-webkit-overflow-scrolling: touch`。**
+   *
+   * 它是 iOS 12 之前用来换惯性滚动的老开关。iOS 13 起惯性本来就是默认的，本项目
+   * 最低支持 iOS 15，所以它一件正事都不做了；可它并没有变成空操作——WebKit 认它
+   * 就把这个容器换到那条老的滚动实现上，而那条路上有两样东西是坏的：
+   *
+   *   一、滚动过程中不画将要露出来的内容。快速翻页时，走掉的那一页照常跟着手指
+   *       走，迎面进来的那一页整页是白的，直到滚动结束才「啪」地一次画全。真机
+   *       与模拟器上都是这个样子——玩家看到的就是「白页、卡顿、关卡显示不全」。
+   *   二、滚动过程中 `scrollLeft` 根本不更新，一直停在起点那个值，等滚动结束才跳
+   *       到终点。于是这一层里每一个读它的人在那段时间里读到的都是**上一页**：
+   *       页码条会停在旧页码上（走完才「闪」一下跳过去）、nearestPage 会算成旧页、
+   *       停稳那一拍的贴齐会照着旧页把 pager 硬写回去——写回去、滚动视图再拽回来，
+   *       就是「突然定住的时候来回抽搐」。5a64134af 改的是「什么时候贴齐」，可这儿
+   *       坏的是「贴齐时读到的位置」，时机再准也救不回一个错的读数。
+   *
+   * 判据是量出来的：iPhone 17 Pro 模拟器上录屏逐帧比对，带着这一行时一轮六次快
+   * 甩里有 5~16 帧整屏空白，`scrollLeft` 全程钉在整数页上；去掉之后同样的手势
+   * 空白帧为 0，`scrollLeft` 中途读得到 3.44 这样的中间值。
+   */
+  scroll-padding-inline: 0;
+  margin-inline: calc(-1 * var(--page-gutter));
+}
+
+.pager::-webkit-scrollbar {
+  display: none;
+}
+
+.slide {
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  min-height: 0;
+  /* 一页左右各留 28px；相邻两页之间就是两份页边距，而不是一条连续卡片带。 */
+  padding-inline: var(--page-gutter);
+  /* 纵向滚动归这一页自己；横向一格也不许动，横着拖就顺着链子交给 pager。 */
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.slide::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── 底部主行动：从这一本里接着打 ─────────────────
+   开局那一下从前挂在首页（「开始游戏」），可它落在整个库的哪一关只有代码知道。
+   搬到这儿之后它才有依据：一本册子摊在眼前，「接着打」指的只可能是这一本里
+   还没打完的最靠前那一关，替玩家把这个选择做完。全本通关时整条不出现。 */
+
+.controls {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* 页码靠左、模式按钮靠右，整行固定在画册底部，不随单页内容滚动。 */
+.footer {
+  flex: 0 0 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 底部页码条：与其他可选模块同一套圆角与厚边 */
+.picker {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  justify-content: flex-start;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0;
+  padding: 2px 0 4px;
+}
+
+.picker::-webkit-scrollbar {
+  display: none;
+}
+
+.chip {
+  flex: 0 0 auto;
+  min-width: 38px;
+  height: 38px;
+  padding: 0 8px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  /* 页码条是一排小方块，并排之后那道厚边会被数量放大——按标准厚度的一半给，
+     立体感够用，不至于让一条导航看着比它引导的内容还重 */
+  --chip-depth: calc(var(--press-depth) / 2);
+  --chip-sunk: calc(var(--press-sunk) / 2);
+  box-shadow: 0 var(--chip-depth) 0 var(--press-shade);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  transition: transform 0.06s ease, box-shadow 0.06s ease, background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.chip:active,
+.chip[data-pressed] {
+  transform: translateY(calc(var(--chip-depth) - var(--chip-sunk)));
+  box-shadow: 0 var(--chip-sunk) 0 var(--press-shade);
+}
+
+.chip[data-state='partial'] {
+  color: var(--color-text);
+}
+
+.chip[data-state='done'] {
+  border-color: rgba(var(--color-success-rgb), 0.3);
+  background: rgba(var(--color-success-rgb), 0.12);
+  box-shadow: 0 var(--chip-depth) 0 var(--press-shade-green);
+  color: var(--color-success);
+}
+
+.chip[data-state='done']:active,
+.chip[data-state='done'][data-pressed] {
+  box-shadow: 0 var(--chip-sunk) 0 var(--press-shade-green);
+}
+
+/* 选中的那一页：整条页码都是浅色按钮，再塞一块实心黑会把厚边压死。
+   改成留白底、上蓝描边，靠对比而不是明度差把它挑出来 */
+.chip[data-active='true'] {
+  border-width: 2px;
+  border-color: var(--color-accent);
+  background: var(--color-accent-wash);
+  box-shadow: 0 var(--chip-depth) 0 var(--press-shade-blue);
+  color: var(--color-accent);
+}
+
+.chip[data-active='true']:active,
+.chip[data-active='true'][data-pressed] {
+  box-shadow: 0 var(--chip-sunk) 0 var(--press-shade-blue);
+}
+
+.viewToggle {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  padding: 9px;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 14%, var(--color-line));
+  border-radius: 14px;
+  background: var(--color-accent-wash);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: var(--color-text);
+  transition: transform 0.08s ease, background-color 0.12s ease;
+}
+
+.viewToggle:active,
+.viewToggle[data-pressed] {
+  transform: scale(0.96);
+}
+
+.viewIcon {
+  flex: 0 0 auto;
+  width: 25px;
+  height: 25px;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.viewToggle[data-target-view='overview'] .viewIcon {
+  stroke: none;
+}
+
+.viewToggle[data-target-view='chapters'] .viewIcon circle {
+  stroke: none;
+}
+
+@media (hover: hover) {
+  .viewToggle:hover {
+    background: var(--color-accent-soft);
+  }
+}
+
+/* 每章自己占一块连续空间；新章另起一行，空位就是分组边界。 */
+.chapterList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 2px;
+}
+
+.chapter + .chapter {
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--color-line) 62%, transparent);
+}
+
+.chapterHead {
+  min-width: 0;
+  margin: 0 2px 14px;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.chapterName {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--color-text);
+}
+
+.chapterProgress {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.chapterHead[data-complete='true'] .chapterProgress {
+  color: var(--color-success);
+}
+
+/* 卡片就是图案本身：不套白框，省下的面积全给图 */
+.grid {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  align-content: start;
+  display: grid;
+  /* 固定四列：auto-fill + minmax 会因小数像素在不同页排成三列或五列，
+     一册之内每页列数不一样。PRD 也写明窄屏同样是 4 列。 */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px 10px;
+}
+
+.card {
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--color-text);
+  transition: transform 0.12s ease;
+}
+
+.card:active .art,
+.card[data-pressed] .art {
+  transform: scale(0.94);
+}
+
+/* 退回选关页时补给读屏的那一下焦点不画描边：手指从没点出过这个框
+   （见 src/utils/quietFocus.ts） */
+.card[data-quiet-focus]:focus,
+.card[data-quiet-focus]:focus-visible {
+  outline: none;
+}
+
+.art {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.08s ease;
+}
+
+/* 未揭晓的关卡露的是一张空盘，不是问号 */
+.art[data-locked='true'] {
+  background: var(--color-slot-faint);
+  box-shadow: none;
+}
+
+.thumbnail {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+
+/* 没打开的关卡就摆一个问号：画一张空盘等于把尺寸告诉人家了，
+   而这一格的价值全在"还不知道里面是什么" */
+.lockedMark {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-line-strong);
+  opacity: 0.24;
+}
+
+/* 手上这一局：右上角一点，比再挂一枚「进行中」标签省地方 */
+.liveDot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-surface);
+}
+
+/* 名称通常占两行；达到字号下界仍放不下时，由 data-name-wrap 增高保留全文。 */
+.name {
+  width: 100%;
+  height: 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  text-align: center;
+  line-height: 1.22;
+}
+
+/*
+ * 英文主名。行高写成**像素**，不是倍数。
+ *
+ * 中日韩两行的那一路上，长名字要由 fitOneLine 现场收字号（「Gingerbread Man」
+ * 在一格 79px 里得收到 9px）。行高若跟着字号走，这一行的高度就跟着缩，底下那行
+ * 本地名于是被一路往上提——同一排四张卡里，收得越多的那张中文越高。
+ * 简中《生日与圣诞》那一排是最明显的一处：拐杖糖、生日蛋糕、姜饼人三张，
+ * 中文一张比一张高。
+ *
+ * 钉成 14px（≈ 11.5 × 1.22，与从前一行的高度只差 0.03px）之后，收字号只改字的
+ * 大小，不动它占的那一格；本地名那一行因此在整页的每一张卡上都落在同一条线上。
+ *
+ * 只写 line-height，不另写 height：单行盒子的自动高度**就是**行高，写死高度是
+ * 同一件事说两遍，还平白给这个 overflow: hidden 的盒子造出一份纵向溢出的可能。
+ */
+.word {
+  max-width: 100%;
+  font-size: 11.5px;
+  line-height: 14px;
+  font-weight: 650;
+  color: var(--color-accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * 没有副名的语言里，名字自己占满整块。
+ *
+ * 颜色与字重跟 .word 一样（它就是主名），只是允许折行、允许按 <html lang>
+ * 的规则断词。上界是 .name 那 31px——**盒子的高度不变**，变的是里面摆几行：
+ * 一行的名字照旧一行，长名字铺到两行，最长的那几个（「T4 Bacteriophage」
+ * 是库里最长的一个）铺三行并由 fitWrappedLines 收一档字号。卡片高度一格不动，
+ * 整页的画与字不会因为某一个名字长就错开。
+ *
+ * 为什么不是封顶两行：封顶两行时第三行会被裁掉，而裁掉的是名字的后半截——
+ * 「T4 Bacterio」比小半档的三行难认得多。
+ */
+.wordWide {
+  max-width: 100%;
+  max-height: 100%;
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1.15;
+  color: var(--color-accent);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  /*
+   * **不写 overflow-wrap: break-word**：那会在没有连字符的地方硬切，
+   * 「Laboratory Flask」变成「Laborator／y Flask」——比小半档的字难认得多。
+   * 断词交给 hyphens: auto（跟着 <html lang> 走，德语在实测的 WebView 里
+   * 断得很好），断不了的由 fitWrappedLines 收字号；它同时看高和宽，
+   * 所以一个长单词横着放不下也会被收进来。
+   */
+  hyphens: auto;
+}
+
+/*
+ * 名字里有空格：只在空格处折，不许在词中间加连字符。
+ *
+ * 与画册名同一条规矩（判据见 utils/nameWrap.ts）：贪心断行会先把第一行塞满，
+ * 于是德语「Chinesische Münze」断成「Chinesi-／sche Münze」、法语
+ * 「Bactériophage T4」断成「Bactériop-／hage T4」——一个词劈成两截，
+ * 要拼回去才认得出。空格就在那儿，折在空格上两个词都是完整的。
+ *
+ * 代价量过：五种拉丁语系各六百个关卡名逐个跑过一遍，受影响的只有五个
+ * （de 三个、fr/es/pt-BR 各一个），最多退一到三档字号，全部仍在下界之上、
+ * 一个都不截断。葡语「Boia salva-vidas」那种名字自带连字符的照旧在连字符处
+ * 折——hyphens: manual 关的是**自动**断词，不碰写在名字里的那一横。
+ */
+.wordWide[data-multiword] {
+  hyphens: manual;
+}
+
+/* 超长本地名及中日韩的英文副文本不可在字号下界后被截断。 */
+.name[data-name-wrap] {
+  height: auto;
+  min-height: 30px;
+}
+
+.name [data-name-wrap] {
+  display: block;
+  max-height: none;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+}
+
+/*
+ * 中文名一律单行。折行会把上面那行英文顶掉半截（.name 是定高的），而省略号
+ * 认不出是什么东西——「理发店旋转灯柱」缩成「理发店旋转灯…」等于没写。
+ * 装不下的那几个由 fitOneLine 现场收字号（见 AlbumPage 的 useLayoutEffect）。
+ */
+.zh {
+  max-width: 100%;
+  /* 行高同样钉死（理由见 .word）：这一行自己也会被 fitOneLine 收字号，
+     「理发店旋转灯柱」收到 9px 时不该把整块名字连着往上缩一截 */
+  font-size: 10.5px;
+  line-height: 13px;
+  font-weight: 400;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+@media (hover: hover) {
+  .card:hover .art {
+    transform: translateY(-2px);
+  }
+
+  .chip:hover[data-active='false'] {
+    border-color: var(--color-accent);
+  }
+
+  .back:hover {
+    background: var(--color-accent-soft);
+  }
+}
+
+/* 老款小屏（667dp 一档）：收一档留白，一页 16 关仍然一屏放得下 */
+@media (max-height: 700px) {
+  .page {
+    padding-top: calc(10px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));
+    padding-bottom: calc(18px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+    gap: 6px;
+  }
+
+  .header {
+    min-height: 38px;
+  }
+
+  .grid {
+    gap: 8px 10px;
+  }
+
+  /* 667dp 一档没有多余纵向空间，沿用原来的紧凑值；放宽只交给主流高度。
+     这一档要保的是「两章 + 四行关卡」仍然一屏放得下。 */
+  .chapterList {
+    gap: 7px;
+  }
+
+  .chapter + .chapter {
+    padding-top: 7px;
+  }
+
+  .chapterHead {
+    margin-bottom: 7px;
+  }
+
+  .name {
+    height: 29px;
+  }
+}
+
+/* 最多六页：始终保留首尾入口，先压间距；窄屏只放宽底部导航的可用空间。 */
+.controls[data-compact='true'] .picker {
+  gap: 6px;
+}
+
+@media (max-width: 374px) {
+  .controls[data-compact='true'] {
+    margin-inline: -18px;
+  }
+
+  .controls[data-compact='true'] .footer {
+    gap: 8px;
+  }
+
+  .controls[data-compact='true'] .picker {
+    gap: 4px;
+  }
+}
+
+/* iOS 只保留安全区加少量按压阴影余量；安卓沿用原底部落点。 */
+:global(html[data-platform='ios']) .page {
+  padding-bottom: calc(4px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+}
+
+/* ── 试玩版横屏与宽屏：一本摊成一行 ─────────────────
+   网页试玩（`--mode demo`）一本只有六关，横屏或桌面浏览器里整本摊成一行就装得下：
+   几章并排，章与章之间一道竖线，卡片按固定边长（--demo-card）排，不再按四列均分——
+   四列均分在 760px 宽上会把一张卡撑到 150px，比封面画本身的分辨率还大。竖屏照旧走
+   上面那套。正式版两端锁竖屏，这些规则全挂在 [data-demo] / [data-chapter-row] 下面，
+   不碰正式版的版式。
+
+   [data-chapter-row] 是试玩版首页宽屏上摊开一本的那块面板（LevelSelect 的 DemoPanel）：
+   它用的是同一张关卡卡（ChapterGrid），所以「章并排」这套规矩也写在这里，一处定。 */
+@media (min-width: 640px) and (orientation: landscape) {
+  .page[data-demo] {
+    max-width: 760px;
+    --demo-card: clamp(76px, 10.5vw, 104px);
+  }
+
+  .page[data-demo] .chapterList,
+  [data-chapter-row] .chapterList {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 14px 22px;
+    padding-top: 6px;
+  }
+
+  .page[data-demo] .chapter,
+  [data-chapter-row] .chapter {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  .page[data-demo] .chapter + .chapter,
+  [data-chapter-row] .chapter + .chapter {
+    padding-top: 0;
+    padding-left: 22px;
+    border-top: 0;
+    border-left: 1px solid color-mix(in srgb, var(--color-line) 62%, transparent);
+  }
+
+  .page[data-demo] .grid,
+  [data-chapter-row] .grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+
+  .page[data-demo] .card,
+  [data-chapter-row] .card {
+    width: var(--demo-card);
+  }
+
+  /* 面板里章名一行、章内关卡贴着章名：面板本身矮，缝按面板的尺度收；几章居中摆 */
+  [data-chapter-row] .chapterList {
+    justify-content: center;
+    margin-block: auto;
+    padding-top: 0;
+    gap: 10px 18px;
+  }
+
+  [data-chapter-row] .chapterHead {
+    margin-bottom: 8px;
+  }
+
+  [data-chapter-row] .chapter + .chapter {
+    padding-left: 16px;
+  }
+}
+
+/* 桌面宽度上三章并排（深蓝之海：2 + 2 + 2 加两道章隔）要 750px 才不折行 */
+@media (min-width: 1024px) and (orientation: landscape) {
+  .page[data-demo] {
+    max-width: 840px;
+  }
+}

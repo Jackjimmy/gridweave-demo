@@ -1,0 +1,465 @@
+/*
+ * 底部结算卡：不铺全屏遮罩、不盖棋盘。
+ * 棋盘上刚揭晓的那张画是主角，这张卡从它下方升起来做补充说明。
+ */
+.sheet {
+  --win-safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --win-sheet-min-height: clamp(
+    204px,
+    calc(24vh + 36px - var(--win-safe-bottom)),
+    228px
+  );
+  --win-sheet-pad-top: clamp(
+    14px,
+    min(calc(4vh - 12px), calc(34px - var(--win-safe-bottom))),
+    20px
+  );
+  --win-sheet-pad-bottom: clamp(
+    10px,
+    min(calc(5vh - 20px), calc(42px - var(--win-safe-bottom))),
+    22px
+  );
+  --win-sheet-gap: clamp(
+    2px,
+    min(calc(1.2vh - 5px), calc(8px - var(--win-safe-bottom))),
+    4px
+  );
+  --win-action-gap: clamp(
+    8px,
+    min(calc(3vh - 10px), calc(28px - var(--win-safe-bottom))),
+    14px
+  );
+
+  position: fixed;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--win-sheet-gap);
+  padding: var(--win-sheet-pad-top) 24px
+    calc(var(--win-sheet-pad-bottom) + var(--win-safe-bottom));
+  background: var(--color-surface);
+  border-radius: 22px 22px 0 0;
+  box-shadow: var(--shadow-float);
+  /* 只钉视觉下限；真实高度可能因底部安全区增长，由组件测量后交给棋盘让位公式。 */
+  min-height: var(--win-card-min-height, var(--win-sheet-min-height));
+  justify-content: flex-start;
+  max-height: 72vh;
+  max-height: 72dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  text-align: center;
+  transform: translateY(calc(100% + 40px));
+  pointer-events: none;
+  will-change: transform;
+}
+
+.entering {
+  transform: none;
+  pointer-events: auto;
+  animation: sheetUp 0.62s cubic-bezier(0.33, 0, 0.15, 1);
+}
+
+.settled {
+  /* 逐字揭晓也走完之后才归还合成层，避免结算页常驻额外显存。 */
+  will-change: auto;
+}
+
+/*
+ * 卡上现在只剩三层字：英文词、中文名、成绩。
+ *
+ * 撤掉的是最上面那一行「NEW WORD」和它旁边的荣誉标。栏目名标的是「下面这个是
+ * 单词」——可下面那个 34px 的英文词自己就说清了；荣誉标说的事成绩那一行也说了。
+ * 两样都只是把同一句话再说一遍，代价是把中文名和成绩一起往下挤。
+ */
+
+.word {
+  position: relative;
+  width: 100%;
+  height: 44px;
+  margin-top: 2px;
+  font-size: 37px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--color-text);
+}
+
+/*
+ * 画布上下各多铺 12px 再画。
+ *
+ * 字形入场时先下移 10px、峰值又放大到 1.08 倍，两头都会越出 41px 的文字盒——
+ * DOM 时代它就这么溢出的，h2 不裁剪，谁也没看出来；画布会把越界的墨迹直接切掉，
+ * 所以这段出血得显式留出来（带下伸笔画的 g/p/y 最先露馅）。
+ * 绝对定位因此不参与布局：.word 仍是 41px，结算卡高度测量不会受出血画布影响。
+ * 左右不出血，改由排版预留（见 wordLayout 的 WORD_EDGE_PADDING_PX）——
+ * 画布再宽就要顶到卡片的 24px 内边距外面去了。
+ */
+.wordCanvas {
+  position: absolute;
+  left: 0;
+  top: -12px;
+  /*
+   * 尺寸必须显式写死，不能靠 left/right + top/bottom 去撑。
+   * canvas 是替换元素，宽高为 auto 时用的是它自己的固有尺寸（默认 300×150），
+   * 两侧 inset 会被直接忽略——真机上量出来就是 300×150 而文字盒 312×41。
+   */
+  width: 100%;
+  height: calc(100% + 24px);
+  display: block;
+  pointer-events: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+/*
+ * 画布不可用或名称在 20px 下仍过长时，保留完整文本并换行。
+ * 棋盘按结算卡真实高度让位，无需固定卡高或删减译名。
+ */
+.wordWrapped {
+  height: auto;
+  min-height: 44px;
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.wordText {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.wordAccessible {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/*
+ * 中文名：这张卡上真正被认出来的那个名字。
+ *
+ * 从前它是 16px 的次要灰字，比下面那行成绩还轻——可通关这一刻要回答的问题是
+ * 「我画出来的是什么」，答案就是这四个字。英文词是个大字，但对着中文用户，
+ * 它更像注音；名字该有名字的分量：字号提到 21px、字重 800、用正文色不用灰色。
+ */
+.nameZh {
+  margin-top: 3px;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--color-text);
+}
+
+.time {
+  margin-top: 3px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+/* 首次通关 / 破纪录时成绩本身也该被看见。荣誉标撤掉之后这是唯一的庆祝信号，
+   所以不只是加粗：字用主题蓝，与中文名拉开的是颜色而不是又一号字 */
+.timeHighlight {
+  margin-top: 3px;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-accent);
+}
+
+/* 首次补齐一章：把命名的理由交回整组图案，不另造货币或奖章。 */
+.chapterComplete {
+  width: min(100%, 360px);
+  margin-top: 8px;
+  padding: 9px 12px 10px;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 18%, var(--color-line));
+  border-radius: var(--radius-card);
+  background: var(--color-accent-wash);
+}
+
+.chapterCompleteHead {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 0;
+  margin-bottom: 8px;
+}
+
+.chapterCompleteHead strong {
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  color: var(--color-accent);
+}
+
+.chapterThumbs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+
+.chapterThumbs li {
+  flex: 0 1 42px;
+  min-width: 0;
+  max-width: 42px;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--color-accent) 16%, transparent);
+}
+
+.chapterThumbs [data-thumb] {
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * 两枚去处按钮永远并排，而且一样宽。
+ *
+ * 从前是 flex-wrap: wrap：德语「Zurück zur Auswahl」配「Nächstes Kapitel」
+ * 在 375px 上正好差一点，于是折成两行——卡片长高一截，把刚揭晓的那幅画往上顶，
+ * 而那幅画才是这一刻的主角。现在不折行，放不下就收字号（见 useFitRowOneLine）。
+ *
+ * 等宽靠 grid 的 1fr：容器按内容收缩（sheet 是 align-items: center），两列
+ * 都取较宽那条标签的宽度，短词那一枚跟着长到一样宽，整排对着中轴线对称。
+ * 撞到 max-width 时两列一起缩到按钮的 min-width，超出的字交给收字号。
+ */
+.actions {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  max-width: 100%;
+  gap: 12px;
+  margin-top: var(--win-action-gap);
+}
+
+/*
+ * 两枚去处按钮：与首页同一套按法——圆角矩形、下沿一道厚边、按下去陷进 3px。
+ *
+ * 从前它们是胶囊（border-radius: 999px），而关外每一个能按的东西（设置、每日、
+ * 继续那一条）都是 16px 圆角的方块加厚边。一个人从首页点进关卡再打完，看到的是
+ * 另一套按钮语言：形状不同、按下去也没有那一下下沉。同一个 App 的按钮该按同一种
+ * 方式响应，所以这里换成关外那一套。
+ *
+ * 但尺寸不照抄确认弹层那两枚（52px / 16px / 0.08em）：那张卡上只有一个问句和两个
+ * 答案，按钮就是主角；这张卡上面还压着一幅画、一个词、一个名字和一行成绩，按钮
+ * 长到那个尺寸就把整张卡坠住了。46px 高、15px 字——够手指按，也不抢戏。
+ */
+.primary,
+.secondary {
+  /*
+   * 宽度的下限按九种语言里最长的那对「返回 / 下一关」定，所有语言用同一个数。
+   *
+   * 日常这一对最长的是西语「Siguiente ›」：15px 粗体加 0.04em 字距约 86px，
+   * 两侧各 12px 内边距加边线就是 112px，留一点气口取 120px。英文「Next ›」
+   * 「Back」在同一个框里，换语言不换按钮的模样。这一枚只在换章时（「Siguiente
+   * capítulo」）才会被 1fr 撑得更宽，那时两枚也仍是一样宽。
+   */
+  min-width: 120px;
+  min-height: 46px;
+  white-space: nowrap;
+  padding: 12px 12px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  box-shadow: 0 var(--press-depth) 0 var(--press-shade);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--color-text);
+  transition: transform 0.06s ease, box-shadow 0.06s ease;
+}
+
+/* 按钮上的字自己占一格盒子：收字号量的是它（按钮身上带着内边距和边框，
+   量不出「留给文字多少位置」，见 fitFontSize 的 boxWidth） */
+.actionLabel {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 主行动：与首页「继续」那一条同一块蓝、同一道深蓝厚边 */
+.primary {
+  background: linear-gradient(180deg, #4a91f7, #3b82f6);
+  border-color: transparent;
+  box-shadow: 0 var(--press-depth) 0 var(--press-shade-accent);
+  color: #fff;
+}
+
+/* 按下：整枚往下走到只剩 1px 厚边——手指按下去的是一枚有厚度的键，不是一块贴纸。
+   :active 之外还认 data-pressed：Chrome 在可滑动区域里要等手势判定才给 :active
+   （见 src/utils/uiHaptics.ts） */
+.primary:active,
+.primary[data-pressed],
+.secondary:active,
+.secondary[data-pressed] {
+  transform: translateY(calc(var(--press-depth) - var(--press-sunk)));
+  box-shadow: 0 var(--press-sunk) 0 var(--press-shade);
+}
+
+.primary:active,
+.primary[data-pressed] {
+  box-shadow: 0 var(--press-sunk) 0 var(--press-shade-accent);
+}
+
+/* 面板升起时补给读屏的那一下焦点不画描边：手指从没点出过这个框
+   （见 src/utils/quietFocus.ts） */
+.primary[data-quiet-focus]:focus,
+.secondary[data-quiet-focus]:focus,
+.primary[data-quiet-focus]:focus-visible,
+.secondary[data-quiet-focus]:focus-visible {
+  outline: none;
+}
+
+@supports (height: 100dvh) {
+  .sheet {
+    --win-sheet-min-height: clamp(
+      204px,
+      calc(24dvh + 36px - var(--win-safe-bottom)),
+      228px
+    );
+    --win-sheet-pad-top: clamp(
+      14px,
+      min(calc(4dvh - 12px), calc(34px - var(--win-safe-bottom))),
+      20px
+    );
+    --win-sheet-pad-bottom: clamp(
+      10px,
+      min(calc(5dvh - 20px), calc(42px - var(--win-safe-bottom))),
+      22px
+    );
+    --win-sheet-gap: clamp(
+      2px,
+      min(calc(1.2dvh - 5px), calc(8px - var(--win-safe-bottom))),
+      4px
+    );
+    --win-action-gap: clamp(
+      8px,
+      min(calc(3dvh - 10px), calc(28px - var(--win-safe-bottom))),
+      14px
+    );
+  }
+}
+
+@keyframes sheetUp {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet {
+    animation: none;
+  }
+}
+
+.sheet > * { flex-shrink: 0; }
+.immediate { animation: none; will-change: auto; }
+.nextDescription {
+  width: min(100%, 360px);
+  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+.nextDescription + .actions { margin-top: 6px; }
+.albumComplete {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  width: min(100%, 380px);
+  padding: 8px 0;
+  text-align: left;
+}
+.albumCover { position: relative; flex: 0 0 78px; height: 78px; }
+.albumCover > [data-thumb] { width: 100%; height: 100%; border-radius: 14px; }
+.albumCover .albumAward[data-plain] { position: absolute; right: -9px; top: -12px; --award-size: 34px; }
+.albumCopy { min-width: 0; }
+.milestoneLabel { font-size: 13px; font-weight: 700; color: var(--color-accent); }
+.albumCopy h2 { font-size: 25px; line-height: 1.3; margin: 4px 0; overflow-wrap: anywhere; }
+.albumTally { font-size: 13px; color: var(--color-text-muted); }
+.lastPicture { margin-top: 8px; font-size: 14px; overflow-wrap: anywhere; }
+
+/* ── 试玩版集齐一本合集 ─────────────────
+   六幅画排成一条摆在最上面（正式版那张是封面 + 文字并排），刚解开的那幅圈一道
+   主题色；底下只有两行字：「合集已收齐」、书名。用时那一行照旧跟在后面。 */
+.collectionComplete {
+  width: min(100%, 380px);
+  padding: 6px 0 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.collectionStrip {
+  /* 撑满这一栏：外层是居中的纵向 flex，不撑开的话它会缩到画布的固有尺寸（几个像素） */
+  align-self: stretch;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+.collectionStrip li {
+  flex: 0 1 46px;
+  width: 46px;
+  min-width: 24px;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--color-accent) 16%, transparent);
+  animation: collectionIn 0.36s ease-out both;
+}
+/* 刚解开的那一幅：一圈主题色的描边，替掉从前那行「藏品已解锁 · 苹果派」 */
+.collectionStrip li[data-just] {
+  box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent);
+}
+.collectionStrip li:nth-child(2) { animation-delay: 0.05s; }
+.collectionStrip li:nth-child(3) { animation-delay: 0.1s; }
+.collectionStrip li:nth-child(4) { animation-delay: 0.15s; }
+.collectionStrip li:nth-child(5) { animation-delay: 0.2s; }
+.collectionStrip li:nth-child(6) { animation-delay: 0.25s; }
+@keyframes collectionIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.92); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .collectionStrip li { animation: none; }
+}
+.collectionStrip [data-thumb] { width: 100%; height: 100%; }
+.collectionComplete .milestoneLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: 0.04em;
+}
+.collectionAward { --award-size: 22px; }
+.collectionTitle { font-size: 24px; line-height: 1.3; margin: 3px 0 0; overflow-wrap: anywhere; }
+.albumActions { display: flex; flex-wrap: nowrap; justify-content: center; gap: 8px; margin-top: 14px; }
+.exitLink { min-height: 44px; padding: 10px; border: 0; background: none; color: var(--color-text-muted); font-size: 13px; }
+@media (max-width: 360px) {
+  .sheet { padding-left: 16px; padding-right: 16px; }
+  /* 窄屏上先让内边距和间距，再动字号：字比留白值钱 */
+  .actions,
+  .albumActions { gap: 8px; }
+  .primary,
+  .secondary { padding-left: 6px; padding-right: 6px; }
+  .chapterComplete { padding-left: 8px; padding-right: 8px; }
+  .chapterThumbs { gap: 4px; }
+  .albumCopy h2 { font-size: 23px; }
+}
