@@ -8,7 +8,7 @@ import type { Plugin } from 'vite'
  * 试玩版不是另一份源码，是同一份源码的另一个构建目标：界面、手感、设置、教学
  * 与正式版逐行相同，只有**内容**被裁到四本册子各六关。裁剪全部发生在打包这一层，
  * 运行时代码一处都不知道自己是试玩版的内容——`collections.json`、`emblems.json`、
- * 关卡名目录、solver 轮数表在这里被改写成裁过的样子，`vite/nonogram-library.ts`
+ * 关卡名目录、solver 轮数表、旧 ID 迁移表在这里被改写成裁过的样子，`vite/nonogram-library.ts`
  * 按同一份清单只把这二十四关打进包，其余 576 关连同它们的名字、场景与画一个字节
  * 都不进 dist。
  *
@@ -113,6 +113,18 @@ export function cropByPuzzleId<T>(table: Record<string, T>, manifest: DemoManife
   return Object.fromEntries(Object.entries(table).filter(([id]) => manifest.levelIds.has(id)))
 }
 
+export interface LegacyIdsFile {
+  ids: Record<string, string>
+}
+
+/**
+ * 2026-09-26 改 ID 的存档迁移表（src/data/legacy-puzzle-ids.json）：只留**新 ID** 在清单里的那几条。
+ * 键是旧 ID、值是新 ID，所以按值筛；老访客的试玩进度照样能搬，其余关卡的新旧 ID 不进 dist。
+ */
+export function cropLegacyIds<T extends LegacyIdsFile>(table: T, manifest: DemoManifest): T {
+  return { ...table, ids: Object.fromEntries(Object.entries(table.ids).filter(([, to]) => manifest.levelIds.has(to))) }
+}
+
 /**
  * 画册名目录只留裁过的目录里还在的册、卷、章。
  *
@@ -177,6 +189,9 @@ export function demoContent(): Plugin {
       if (id.endsWith('/src/data/emblems.json')) return emit(cropEmblems(read()))
       if (id.endsWith('/src/data/level-tiers.json')) {
         return emit(cropByPuzzleId(JSON.parse(code) as Record<string, number>, read()))
+      }
+      if (id.endsWith('/src/data/legacy-puzzle-ids.json')) {
+        return emit(cropLegacyIds(JSON.parse(code) as LegacyIdsFile, read()))
       }
       if (id.includes('/src/data/i18n/puzzle-names/')) {
         return emit(cropByPuzzleId(JSON.parse(code) as Record<string, string>, read()))
