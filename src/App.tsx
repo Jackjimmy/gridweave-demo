@@ -1600,7 +1600,7 @@ export default function App() {
           /* 半途收回的左缘手势会把这一层卸了再挂回来，页码得由外面还给它 */
           restorePage={albumPage.current}
           onPageChange={rememberAlbumPage}
-          /* 教学讲的是 easy-01-heart 那张盘，而它是首册第 3 关：没看过教学的人
+          /* 教学讲的是 festive-tales-01-heart 那张盘，而它是首册第 3 关：没看过教学的人
              从第 1 关开局就再也遇不上它，所以这一本里优先把它排在前面 */
           preferPuzzleId={loadTutorialSeen() ? undefined : TUTORIAL_LEVEL_ID}
           onSelect={choosePuzzle}

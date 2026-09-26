@@ -5,7 +5,7 @@ import { validatePuzzle } from './validator'
 /** 合法基准关卡（心形） */
 function validPuzzle(overrides: Partial<PuzzleData> = {}): PuzzleData {
   return {
-    id: 'easy-01-heart',
+    id: 'festive-tales-01-heart',
     name: { zh: '爱心', en: 'Heart' },
     size: 5,
     difficulty: 'easy',
@@ -34,21 +34,28 @@ describe('validatePuzzle · schema', () => {
     expect(validatePuzzle({ ...validPuzzle(), extra: 1 }).ok).toBe(false)
   })
 
-  it('拒绝 id 命名不规范与难度前缀不一致', () => {
-    expect(validatePuzzle(validPuzzle({ id: 'Easy-1-Heart' })).ok).toBe(false)
-    expect(validatePuzzle(validPuzzle({ id: 'medium-01-heart' })).ok).toBe(false)
+  it('拒绝 id 命名不规范', () => {
+    // 正式库 <画册>-<册内序号 2～3 位>-<slug>，见 docs/content/puzzle-identity.md
+    expect(validatePuzzle(validPuzzle({ id: 'deep-blue-37-manta-ray' })).ok).toBe(true)
+    expect(validatePuzzle(validPuzzle({ id: 'Festive-Tales-01-Heart' })).ok).toBe(false)
+    expect(validatePuzzle(validPuzzle({ id: 'festive-tales-1-heart' })).ok).toBe(false) // 序号不足 2 位
+    expect(validatePuzzle(validPuzzle({ id: 'festive-tales-01' })).ok).toBe(false) // 缺 slug
   })
 
-  it('接受每日池 id 且不校验难度前缀', () => {
-    // 池内 id 不带难度前缀，难度只由 difficulty 字段承载，见 content/daily/README.md
+  it('难度只由尺寸决定，不看 id', () => {
+    expect(validatePuzzle(validPuzzle({ difficulty: 'medium' })).ok).toBe(false)
+  })
+
+  it('接受每日池交接 id 与 daily-<日期>', () => {
     expect(validatePuzzle(validPuzzle({ id: 'd0001-heart' }))).toEqual({ ok: true, errors: [] })
     expect(validatePuzzle(validPuzzle({ id: 'd10234-heart' })).ok).toBe(true)
+    expect(validatePuzzle(validPuzzle({ id: 'daily-2026-09-01' })).ok).toBe(true)
   })
 
   it('拒绝不合规的每日池 id', () => {
     expect(validatePuzzle(validPuzzle({ id: 'd1-heart' })).ok).toBe(false) // 序号不足 4 位
     expect(validatePuzzle(validPuzzle({ id: 'd0001' })).ok).toBe(false) // 缺 slug
-    expect(validatePuzzle(validPuzzle({ id: 'daily-2026-05-11' })).ok).toBe(false) // 发布用 id 不得入库
+    expect(validatePuzzle(validPuzzle({ id: 'daily-2026-5-11' })).ok).toBe(false) // 日期不补零
   })
 
   it('拒绝重复 id', () => {
@@ -60,7 +67,7 @@ describe('validatePuzzle · schema', () => {
       validPuzzle({ id: 'easy-02-heart-copy', name: { zh: '另一颗心', en: 'heart' } }),
       [validPuzzle()],
     )
-    expect(result.errors).toContain('[schema] 生产区英文名重复: heart（已存在 easy-01-heart）')
+    expect(result.errors).toContain('[schema] 生产区英文名重复: heart（已存在 festive-tales-01-heart）')
   })
 
   it('拒绝非法 size 与非 0/1 矩阵', () => {

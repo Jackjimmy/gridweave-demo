@@ -15,15 +15,23 @@ const ALLOWED_KEYS = new Set([...REQUIRED_KEYS, 'palette', 'art'])
 
 const COLOR_PATTERN = /^#[0-9a-f]{6}$/i
 
-// 正式库：序号 2 位起步，库规模超过 99 后允许 3 位（排序在 data/index.ts 按数值比较）
-const ID_PATTERN = /^(easy|medium|hard)-\d{2,3}-[a-z0-9]+(-[a-z0-9]+)*$/
-// 每日挑战池：全局单调序号，4 位补零起步（位数无上限），难度不进 id，见 content/daily/README.md
+// 关卡 ID 的三种合法形态（权威规则见 docs/content/puzzle-identity.md）：
+// 正式库：<画册 id>-<册内序号 2～3 位>-<英文名 slug>，如 festive-tales-01-heart
+const FORMAL_ID_PATTERN = /^[a-z]+(?:-[a-z]+)*-\d{2,3}-[a-z0-9]+(?:-[a-z0-9]+)*$/
+// 已排期的每日关：daily-<日期>，与玩家看到的 ID、存档键、CDN 对象名一致
+const DAILY_DATE_ID_PATTERN = /^daily-\d{4}-\d{2}-\d{2}$/
+// 每日池交接 ID（入池到排期之间）与撤下的历史记录：d{全局序号，4 位补零起步}-{slug}
 const DAILY_ID_PATTERN = /^d\d{4,}-[a-z0-9]+(-[a-z0-9]+)*$/
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+const DIFFICULTY_OF_SIZE: Record<number, string> = { 5: 'easy', 10: 'medium', 15: 'hard' }
 
-/** 池内 id（d0001-kite）与正式库 id（medium-12-heart）走不同的命名规则 */
+/** 每日池的交接 / 历史 ID（d0001-kite）；已排期的每日关是 daily-<日期> */
 export function isDailyPoolId(id: string): boolean {
   return DAILY_ID_PATTERN.test(id)
+}
+
+function isValidPuzzleId(id: string): boolean {
+  return DAILY_DATE_ID_PATTERN.test(id) || DAILY_ID_PATTERN.test(id) || FORMAL_ID_PATTERN.test(id)
 }
 
 export function serializeMatrix(matrix: number[][]): string {
@@ -70,8 +78,8 @@ function validateSchema(raw: unknown, existing: PuzzleData[], errors: string[]):
   }
   if (errors.length > 0) return false
 
-  if (typeof p.id !== 'string' || !(ID_PATTERN.test(p.id) || DAILY_ID_PATTERN.test(p.id))) {
-    errors.push(`[schema] id 不符合命名规范 {difficulty}-{序号}-{slug} 或 d{序号}-{slug}: ${String(p.id)}`)
+  if (typeof p.id !== 'string' || !isValidPuzzleId(p.id)) {
+    errors.push(`[schema] id 不符合命名规范 <画册>-<序号>-<slug>、daily-<日期> 或 d<序号>-<slug>: ${String(p.id)}`)
   }
   if (existing.some((e) => e.id === p.id)) {
     errors.push(`[schema] id 重复: ${String(p.id)}`)
@@ -105,9 +113,9 @@ function validateSchema(raw: unknown, existing: PuzzleData[], errors: string[]):
 
   if (typeof p.difficulty !== 'string' || !DIFFICULTIES.includes(p.difficulty as never)) {
     errors.push(`[schema] difficulty 非法: ${String(p.difficulty)}`)
-  } else if (typeof p.id === 'string' && !isDailyPoolId(p.id) && !p.id.startsWith(`${p.difficulty}-`)) {
-    // 池内 id 不带难度前缀，难度只由 difficulty 字段承载
-    errors.push(`[schema] difficulty(${p.difficulty}) 与 id 前缀不一致`)
+  } else if (typeof p.size === 'number' && DIFFICULTY_OF_SIZE[p.size] && DIFFICULTY_OF_SIZE[p.size] !== p.difficulty) {
+    // 难度不进 ID，只由尺寸决定：5×5 easy、10×10 medium、15×15 hard
+    errors.push(`[schema] difficulty(${p.difficulty}) 与尺寸 ${p.size}×${p.size} 不一致`)
   }
 
   const solution = p.solution

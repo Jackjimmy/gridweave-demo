@@ -1,4 +1,4 @@
-import astronautData from '../../data/puzzles/hard/hard-54-astronaut.json'
+import astronautData from '../../data/puzzles/hard/sky-beyond-25-astronaut.json'
 import type { PuzzleData } from '../../types'
 import { puzzleBitmap } from '../Thumbnail/bitmap'
 

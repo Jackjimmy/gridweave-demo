@@ -68,7 +68,7 @@ describe('solve', () => {
   })
 
   it('15×15 关卡在 500ms 内收敛', async () => {
-    const { default: rocket } = await import('../data/puzzles/hard/hard-01-rocket.json')
+    const { default: rocket } = await import('../data/puzzles/hard/sky-beyond-22-rocket.json')
     const start = performance.now()
     const result = solve(deriveClues(rocket.solution), rocket.size)
     expect(performance.now() - start).toBeLessThan(500)

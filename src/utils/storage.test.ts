@@ -38,14 +38,14 @@ describe('progress 存取', () => {
   })
 
   it('保存后可读回', () => {
-    saveProgress('easy-01-heart', {
+    saveProgress('festive-tales-01-heart', {
       version: 1,
       board: '#.x#',
       elapsedSeconds: 42,
       completed: false,
     })
-    expect(localStorage.getItem('nonogram:progress:easy-01-heart')).not.toBeNull()
-    expect(loadProgress('easy-01-heart')?.elapsedSeconds).toBe(42)
+    expect(localStorage.getItem('nonogram:progress:festive-tales-01-heart')).not.toBeNull()
+    expect(loadProgress('festive-tales-01-heart')?.elapsedSeconds).toBe(42)
   })
 
   it('损坏的存档返回 null', () => {
@@ -113,7 +113,7 @@ describe('progress 存取', () => {
     })
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     expect(
-      saveProgress('easy-01-heart', {
+      saveProgress('festive-tales-01-heart', {
         version: 1,
         board: '',
         elapsedSeconds: 0,
@@ -148,7 +148,7 @@ describe('写失败登记与重试', () => {
       throw new DOMException('quota', 'QuotaExceededError')
     })
 
-    expect(saveProgress('easy-01-heart', progress)).toBe(false)
+    expect(saveProgress('festive-tales-01-heart', progress)).toBe(false)
     expect(hasFailedSaves()).toBe(true)
     expect(seen).toHaveBeenCalledTimes(1)
 
@@ -161,7 +161,7 @@ describe('写失败登记与重试', () => {
     spy.mockRestore()
     expect(retryFailedSaves()).toBe(true)
     expect(hasFailedSaves()).toBe(false)
-    expect(loadProgress('easy-01-heart')?.elapsedSeconds).toBe(7)
+    expect(loadProgress('festive-tales-01-heart')?.elapsedSeconds).toBe(7)
     expect(seen).toHaveBeenCalledTimes(2)
     unsubscribe()
   })
@@ -170,17 +170,17 @@ describe('写失败登记与重试', () => {
     const spy = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
       throw new Error('quota')
     })
-    saveProgress('easy-01-heart', progress)
+    saveProgress('festive-tales-01-heart', progress)
     spy.mockRestore()
 
     // 存储恢复了，玩家又落了一笔——这一笔正常写了进去，攒下的那条就此作废
-    expect(saveProgress('easy-01-heart', { ...progress, board: '###.', elapsedSeconds: 20 })).toBe(
+    expect(saveProgress('festive-tales-01-heart', { ...progress, board: '###.', elapsedSeconds: 20 })).toBe(
       true,
     )
     expect(hasFailedSaves()).toBe(false)
 
     expect(retryFailedSaves()).toBe(true)
-    expect(loadProgress('easy-01-heart')).toEqual(
+    expect(loadProgress('festive-tales-01-heart')).toEqual(
       expect.objectContaining({ board: '###.', elapsedSeconds: 20 }),
     )
   })
@@ -189,12 +189,12 @@ describe('写失败登记与重试', () => {
     const spy = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
       throw new Error('quota')
     })
-    saveProgress('easy-01-heart', progress)
-    saveProgress('easy-01-heart', { ...progress, board: '##..', elapsedSeconds: 9 })
+    saveProgress('festive-tales-01-heart', progress)
+    saveProgress('festive-tales-01-heart', { ...progress, board: '##..', elapsedSeconds: 9 })
     spy.mockRestore()
 
     expect(retryFailedSaves()).toBe(true)
-    expect(loadProgress('easy-01-heart')).toEqual(
+    expect(loadProgress('festive-tales-01-heart')).toEqual(
       expect.objectContaining({ board: '##..', elapsedSeconds: 9 }),
     )
   })

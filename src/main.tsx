@@ -7,6 +7,7 @@ import App from './App.tsx'
 import { SettingsProvider } from './hooks/useSettings.tsx'
 import { initI18n } from './i18n/boot'
 import { preloadLibrary } from './data/libraryBoot'
+import { migrateLegacyProgress } from './utils/legacyIds'
 import { installInputModality } from './utils/inputModality'
 import { isDemoBuild } from './config/demo'
 
@@ -47,8 +48,12 @@ const root = createRoot(document.getElementById('root')!)
  * 关卡库与语言资源并行取齐（见 data/libraryBoot）：挂树之后屏幕上不再有「画还在
  * 路上」的占位——首页收藏架、收藏页、左缘返回垫底的上一层，全都假定页面挂上
  * 之后是静态的。它自己永不拒绝、到点就放行，所以不会让挂树多出一个前提。
+ *
+ * 存档迁移（2026-09-26 正式库改 ID，见 utils/legacyIds）也在挂树之前做完：进度是
+ * 挂树那一刻按关卡 ID 一次读进来的，迁晚了首页就会先显示一遍「全没解过」。
+ * 它同样永不拒绝，绝大多数设备上只是读一个完成标记。
  */
-void Promise.all([initI18n(), preloadLibrary()]).then(mount, mount)
+void Promise.all([initI18n(), preloadLibrary(), migrateLegacyProgress()]).then(mount, mount)
 
 function mount() {
   if (import.meta.env.VITE_SWIPE_PROBE) {

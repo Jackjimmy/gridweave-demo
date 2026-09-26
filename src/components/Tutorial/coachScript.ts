@@ -1,5 +1,5 @@
-import heartData from '../../data/puzzles/easy/easy-01-heart.json'
-import starData from '../../data/puzzles/easy/d0302-star.json'
+import heartData from '../../data/puzzles/easy/festive-tales-01-heart.json'
+import starData from '../../data/puzzles/easy/festive-tales-04-star.json'
 import type { Board, Puzzle, PuzzleData } from '../../types'
 import { deriveClues } from '../../utils/clues'
 import type { ListKey, TextKey } from '../../i18n'
@@ -35,7 +35,7 @@ import type { HintView } from '../Board/hintView'
  * 教程绑定的那一关。入口（首次进入自动开讲、顶栏的「新手教学」按钮）都认它：
  * 讲的是这张盘的解法，摆到别的关卡上，每一句都对不上眼前的数字。
  */
-export const TUTORIAL_LEVEL_ID = 'easy-01-heart'
+export const TUTORIAL_LEVEL_ID = 'festive-tales-01-heart'
 
 export const TUTORIAL_PUZZLE: Puzzle = {
   ...(heartData as PuzzleData),
@@ -70,7 +70,7 @@ export const TUTORIAL_PUZZLE: Puzzle = {
  * 一开局就当面介绍过了（见 HintIntro），走到这儿的人早知道它在哪儿、是干什么的，
  * 这一页就撤了——同一句话说两遍，第二遍只会让人以为自己漏了什么。
  */
-export const TUTORIAL2_LEVEL_ID = 'd0302-star'
+export const TUTORIAL2_LEVEL_ID = 'festive-tales-04-star'
 
 export const TUTORIAL2_PUZZLE: Puzzle = {
   ...(starData as PuzzleData),
@@ -84,7 +84,7 @@ export const TUTORIAL2_PUZZLE: Puzzle = {
  * 卡住了就点它，不限次数，随时当老师用。之后每一关卡住都有这条出路，
  * 星星那一关的教学末尾就不必再讲一遍灯泡。
  */
-export const HINT_INTRO_LEVEL_ID = 'd0016-diamond'
+export const HINT_INTRO_LEVEL_ID = 'festive-tales-02-diamond'
 
 export interface CoachCell {
   row: number

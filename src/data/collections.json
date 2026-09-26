@@ -31,24 +31,24 @@
               "zh": null,
               "en": null,
               "levels": [
-                "easy-01-heart",
-                "d0016-diamond",
-                "easy-09-toy-car",
-                "d0302-star",
-                "easy-08-airplane",
-                "easy-05-moon"
+                "festive-tales-01-heart",
+                "festive-tales-02-diamond",
+                "festive-tales-03-toy-car",
+                "festive-tales-04-star",
+                "festive-tales-05-toy-airplane",
+                "festive-tales-06-moon"
               ]
             }
           ]
         }
       ],
       "levels": [
-        "easy-01-heart",
-        "d0016-diamond",
-        "easy-09-toy-car",
-        "d0302-star",
-        "easy-08-airplane",
-        "easy-05-moon"
+        "festive-tales-01-heart",
+        "festive-tales-02-diamond",
+        "festive-tales-03-toy-car",
+        "festive-tales-04-star",
+        "festive-tales-05-toy-airplane",
+        "festive-tales-06-moon"
       ]
     },
     {
@@ -82,9 +82,9 @@
               "zh": "蛋糕橱窗",
               "en": "The Cake Window",
               "levels": [
-                "d0095-cupcake",
-                "d0388-macaron",
-                "d0652-pudding"
+                "sweet-shop-01-cupcake",
+                "sweet-shop-02-macaron",
+                "sweet-shop-03-pudding"
               ]
             },
             {
@@ -92,21 +92,21 @@
               "zh": "刚出炉",
               "en": "Fresh from the Oven",
               "levels": [
-                "medium-128-cookie",
-                "medium-129-donut",
-                "d0469-apple-pie"
+                "sweet-shop-04-cookie",
+                "sweet-shop-05-donut",
+                "sweet-shop-09-apple-pie"
               ]
             }
           ]
         }
       ],
       "levels": [
-        "d0095-cupcake",
-        "d0388-macaron",
-        "d0652-pudding",
-        "medium-128-cookie",
-        "medium-129-donut",
-        "d0469-apple-pie"
+        "sweet-shop-01-cupcake",
+        "sweet-shop-02-macaron",
+        "sweet-shop-03-pudding",
+        "sweet-shop-04-cookie",
+        "sweet-shop-05-donut",
+        "sweet-shop-09-apple-pie"
       ]
     },
     {
@@ -140,8 +140,8 @@
               "zh": "浅水滩",
               "en": "In the Shallows",
               "levels": [
-                "d0295-shrimp",
-                "d0441-seaweed"
+                "deep-blue-14-shrimp",
+                "deep-blue-15-seaweed"
               ]
             },
             {
@@ -149,8 +149,8 @@
               "zh": "深处的影子",
               "en": "Shapes in the Deep",
               "levels": [
-                "d0642-eel",
-                "d0060-jellyfish"
+                "deep-blue-37-eel",
+                "deep-blue-38-jellyfish"
               ]
             },
             {
@@ -158,20 +158,20 @@
               "zh": "大块头",
               "en": "The Big Ones",
               "levels": [
-                "medium-114-whale",
-                "d0248-seal"
+                "deep-blue-41-whale",
+                "deep-blue-42-seal"
               ]
             }
           ]
         }
       ],
       "levels": [
-        "d0295-shrimp",
-        "d0441-seaweed",
-        "d0642-eel",
-        "d0060-jellyfish",
-        "medium-114-whale",
-        "d0248-seal"
+        "deep-blue-14-shrimp",
+        "deep-blue-15-seaweed",
+        "deep-blue-37-eel",
+        "deep-blue-38-jellyfish",
+        "deep-blue-41-whale",
+        "deep-blue-42-seal"
       ]
     },
     {
@@ -205,8 +205,8 @@
               "zh": "离开地面",
               "en": "Leaving the Ground",
               "levels": [
-                "d0436-jet-fighter",
-                "hard-01-rocket"
+                "sky-beyond-20-jet-fighter",
+                "sky-beyond-22-rocket"
               ]
             },
             {
@@ -214,9 +214,9 @@
               "zh": "在轨道上",
               "en": "In Orbit",
               "levels": [
-                "d0213-space-shuttle",
-                "hard-56-space-station",
-                "hard-54-astronaut"
+                "sky-beyond-23-space-shuttle",
+                "sky-beyond-24-space-station",
+                "sky-beyond-25-astronaut"
               ]
             },
             {
@@ -224,19 +224,19 @@
               "zh": "最后一束光",
               "en": "One Last Beam",
               "levels": [
-                "hard-55-ufo-abduction"
+                "sky-beyond-27-ufo-beam"
               ]
             }
           ]
         }
       ],
       "levels": [
-        "d0436-jet-fighter",
-        "hard-01-rocket",
-        "d0213-space-shuttle",
-        "hard-56-space-station",
-        "hard-54-astronaut",
-        "hard-55-ufo-abduction"
+        "sky-beyond-20-jet-fighter",
+        "sky-beyond-22-rocket",
+        "sky-beyond-23-space-shuttle",
+        "sky-beyond-24-space-station",
+        "sky-beyond-25-astronaut",
+        "sky-beyond-27-ufo-beam"
       ]
     }
   ]

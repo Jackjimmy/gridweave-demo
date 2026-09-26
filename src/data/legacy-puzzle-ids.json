@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "migratedAt": "2026-09-26",
+  "ids": {
+    "easy-01-heart": "festive-tales-01-heart",
+    "d0016-diamond": "festive-tales-02-diamond",
+    "easy-09-toy-car": "festive-tales-03-toy-car",
+    "d0302-star": "festive-tales-04-star",
+    "easy-08-airplane": "festive-tales-05-toy-airplane",
+    "easy-05-moon": "festive-tales-06-moon",
+    "d0095-cupcake": "sweet-shop-01-cupcake",
+    "d0388-macaron": "sweet-shop-02-macaron",
+    "d0652-pudding": "sweet-shop-03-pudding",
+    "medium-128-cookie": "sweet-shop-04-cookie",
+    "medium-129-donut": "sweet-shop-05-donut",
+    "d0469-apple-pie": "sweet-shop-09-apple-pie",
+    "d0295-shrimp": "deep-blue-14-shrimp",
+    "d0441-seaweed": "deep-blue-15-seaweed",
+    "d0642-eel": "deep-blue-37-eel",
+    "d0060-jellyfish": "deep-blue-38-jellyfish",
+    "medium-114-whale": "deep-blue-41-whale",
+    "d0248-seal": "deep-blue-42-seal",
+    "d0436-jet-fighter": "sky-beyond-20-jet-fighter",
+    "hard-01-rocket": "sky-beyond-22-rocket",
+    "d0213-space-shuttle": "sky-beyond-23-space-shuttle",
+    "hard-56-space-station": "sky-beyond-24-space-station",
+    "hard-54-astronaut": "sky-beyond-25-astronaut",
+    "hard-55-ufo-abduction": "sky-beyond-27-ufo-beam"
+  }
+}
