@@ -1,3 +1,4 @@
+import { DemoLinks } from '../Tutorial/DemoLinks'
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Puzzle, PuzzleProgress } from '../../types'
 import { authAvailable } from '../../config/auth'
@@ -269,31 +270,32 @@ export function LevelSelect({
         */}
         {isDemoBuild && !demoWide ? (
           <div className={styles.titleStack}>
-            <h1 className={styles.title} aria-label="Nonogram" data-coach="title">
+            <h1 className={styles.title} aria-label={isDemoBuild ? "Gridweave Nonogram" : "Nonogram"} data-coach="title">
               <button
                 type="button"
                 className={styles.titleButton}
                 aria-label={t('about.aria')}
                 onClick={() => setShowAbout(true)}
               >
-                <span className={styles.titleMark}>NONO</span>GRAM
+                {isDemoBuild ? <>Gridweave</> : <><span className={styles.titleMark}>NONO</span>GRAM</>}
               </button>
             </h1>
             <DemoTagline albums={albums} className={styles.demoSubtitle} />
+            <DemoLinks compact />
           </div>
         ) : (
-          <h1 className={styles.title} aria-label="Nonogram" data-coach="title">
+          <h1 className={styles.title} aria-label={isDemoBuild ? "Gridweave Nonogram" : "Nonogram"} data-coach="title">
             <button
               type="button"
               className={styles.titleButton}
               aria-label={t('about.aria')}
               onClick={() => setShowAbout(true)}
             >
-              <span className={styles.titleMark}>NONO</span>GRAM
+              {isDemoBuild ? <>Gridweave</> : <><span className={styles.titleMark}>NONO</span>GRAM</>}
             </button>
           </h1>
         )}
-        {demoWide && <DemoTagline albums={albums} className={styles.demoTagline} />}
+        {demoWide && <div><DemoTagline albums={albums} className={styles.demoTagline} /><DemoLinks compact /></div>}
 
         {daily && onSelectDaily && (
           <button

@@ -30,27 +30,33 @@ import { journeySeen, rememberJourney } from './journey'
 export interface StoreReviewPlugin {
   /** 请系统弹邀评层。promise 只表示「已经请了」，弹不弹、评没评都不可知。 */
   requestReview(): Promise<void>
+  /**
+   * 作废还没弹出来的那次请求。Android 要先异步向 Play 取 ReviewInfo，慢的时候玩家
+   * 可能已经点了「下一关」；作废之后迟到的 ReviewInfo 直接丢掉，不压到新棋盘上。
+   * iOS 是同步请的，没有这段窗口，那边是空实现。
+   */
+  cancelReview(): Promise<void>
+  /**
+   * 打开商店里本应用的详情页（设置里「去评分」）。只有 Android 用：点名交给 Google Play
+   * （com.android.vending），没有 Play 再用浏览器开网页版；`market://` 不点名，ColorOS、
+   * HyperOS 自带的商城也接它，还常被设成默认。网页层的 window.open 兜底同样不点名，
+   * 所以兜底也在原生里做。iOS 走 https 通用链接，只有 App Store 接得住，那边是空实现。
+   */
+  openStorePage(): Promise<{ opened: 'play' | 'web' | 'none' }>
 }
 
 export const StoreReview = registerPlugin<StoreReviewPlugin>('StoreReview')
 
 /** App Store Connect → App Information → Apple ID */
 const APPLE_APP_ID = '6812812939'
-/** Play 的包名。不读 nativeAppInfo().id：debug 包多一个 .debug 后缀，商店里没有它 */
-const ANDROID_PACKAGE = 'jack.nonogram'
 
 /**
- * 商店评论页。iOS 走 https 而不是 itms-apps://：AppLauncher.openUrl 先 canOpenURL，
+ * App Store 评论页。走 https 而不是 itms-apps://：AppLauncher.openUrl 先 canOpenURL，
  * 自定义 scheme 要在 Info.plist 登记 LSApplicationQueriesSchemes，https 是通用链接，
  * 系统直接交给 App Store；?action=write-review 落到评论框。
- * Android 的 market:// 由 Play 接管；没有 Play 的机器退到网页版。
+ * Play 的详情页由原生 openStorePage 打开（点名 Google Play），网页层不拼链接。
  */
-const REVIEW_PAGE: Record<typeof distributionChannel, string | null> = {
-  appstore: `https://apps.apple.com/app/id${APPLE_APP_ID}?action=write-review`,
-  play: `market://details?id=${ANDROID_PACKAGE}`,
-  direct: null,
-}
-const PLAY_WEB_PAGE = `https://play.google.com/store/apps/details?id=${ANDROID_PACKAGE}`
+const APP_STORE_REVIEW_PAGE = `https://apps.apple.com/app/id${APPLE_APP_ID}?action=write-review`
 
 /** 这一版请过没有；键带版本号，升级后有一次新的机会 */
 const ASKED_KEY = 'review-asked'
@@ -91,20 +97,40 @@ export function noteAppLaunch(): number {
 
 /** 有没有商店可去；设置面板据此决定那一行显不显示 */
 export function canOpenStoreReview(): boolean {
-  return REVIEW_PAGE[distributionChannel] !== null
+  return distributionChannel === 'appstore' || distributionChannel === 'play'
 }
 
 /**
  * 跳到商店的评论页（设置里那一行）。
- * 记一笔：主动来过的人不必再被请。
+ * 真打开了才记一笔：主动来过的人不必再被请；点了没打开的人照常还会收到系统邀评。
+ *
+ *   - Play：原生 openStorePage 点名 Google Play，没有 Play 退到浏览器。插件不在
+ *     （旧包）或 reject 都按没打开算。
+ *   - App Store：AppLauncher 打不开时是正常 resolve `{ completed: false }` 而不是
+ *     reject（UIApplication.open 失败），和 reject 一样退到 window.open。
  */
 export function openStoreReviewPage(): void {
-  const url = REVIEW_PAGE[distributionChannel]
-  if (!url) return
-  rememberJourney(OPENED_KEY)
-  void AppLauncher.openUrl({ url }).catch(() => {
-    window.open(distributionChannel === 'play' ? PLAY_WEB_PAGE : url, '_blank', 'noopener,noreferrer')
-  })
+  if (distributionChannel === 'play') {
+    void StoreReview.openStorePage().then(
+      (result) => {
+        if (result?.opened === 'play' || result?.opened === 'web') rememberJourney(OPENED_KEY)
+      },
+      () => {
+        // 没打开：不记，以后照常邀评
+      },
+    )
+    return
+  }
+  if (distributionChannel !== 'appstore') return
+  const url = APP_STORE_REVIEW_PAGE
+  const fallback = () => {
+    const opened = window.open(url, '_blank', 'noopener,noreferrer')
+    if (opened) rememberJourney(OPENED_KEY)
+  }
+  void AppLauncher.openUrl({ url }).then(
+    (result) => (result?.completed ? rememberJourney(OPENED_KEY) : fallback()),
+    fallback,
+  )
 }
 
 /** 5×5 是上手章：教完就要分太急 */
@@ -129,12 +155,29 @@ export function noteChapterCompleted(chapter: { size: number }): boolean {
   return true
 }
 
-/** 补完一章之后、章名完成那行字已经在屏上：该请就请。 */
-export function requestReviewAfterChapter(chapter: { size: number }): void {
-  if (!noteChapterCompleted(chapter)) return
-  void StoreReview.requestReview().catch(() => {
-    // 插件不在（浏览器、旧包）就当没请过这回事
-  })
+/**
+ * 补完一章之后、章名完成那行字已经在屏上：该请就请。
+ *
+ * 返回一个「离开这张结算卡」时调用的函数：请求若还没弹出来就作废（见
+ * StoreReviewPlugin.cancelReview）。本版的「已请过」在发请求前就记下了，作废或原生
+ * 失败都不补请——宁可这一版少请一次，也不在别的时刻冒出来。
+ */
+export function requestReviewAfterChapter(chapter: { size: number }): () => void {
+  if (!noteChapterCompleted(chapter)) return () => {}
+  let settled = false
+  void StoreReview.requestReview()
+    .catch(() => {
+      // 插件不在（浏览器、旧包）或 Play 不可用：不重试，本版不再请
+    })
+    .finally(() => {
+      settled = true
+    })
+  return () => {
+    if (settled) return
+    void StoreReview.cancelReview().catch(() => {
+      // 旧包没有这个方法：迟到的请求拦不住，但也不影响离开
+    })
+  }
 }
 
 /** 测试用：回到刚启动、什么都没登记的状态 */

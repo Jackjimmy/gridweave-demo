@@ -51,7 +51,7 @@ export function HomeTour({ rootRef, hasDaily, hasCollection = true }: Props) {
         id: 'welcome',
         spot: { kind: 'element', target: 'title' },
         // 与字标点开的那页游戏说明同一段话（见 AboutCard），末尾多一句「点继续」
-        title: t('about.title'),
+        title: isDemoBuild ? `Gridweave · ${t('about.title')}` : t('about.title'),
         lines: [...aboutLines(t), t('tour.welcome.continue')],
       },
       /*

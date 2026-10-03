@@ -1,3 +1,4 @@
+import { demoCopy } from './demoCopy'
 import { isDemoBuild } from '../../config/demo'
 import type { Translator } from '../../i18n'
 
@@ -10,5 +11,5 @@ import type { Translator } from '../../i18n'
  */
 export function aboutLines(t: Translator): string[] {
   const lines = t.list('about.lines')
-  return isDemoBuild ? [...lines.slice(0, -1), t('about.demoTail')] : [...lines]
+  return isDemoBuild ? [...lines.slice(0, -1), t('about.demoTail'), demoCopy[t.locale].storage] : [...lines]
 }

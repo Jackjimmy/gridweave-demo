@@ -384,3 +384,8 @@ p {
 html[data-input-modality='pointer'] :focus:not(input):not(textarea):not(select):not([contenteditable]):not([role='textbox']) {
   outline: none !important;
 }
+
+.demo-links { font-size: 14px; line-height: 1.6; margin: 12px 0; }
+.demo-links a { color: var(--color-text); text-decoration: underline; text-underline-offset: 3px; }
+.demo-links a:focus-visible { outline: 3px solid currentColor; outline-offset: 3px; }
+.demo-links p { margin: 8px 0; opacity: .85; }

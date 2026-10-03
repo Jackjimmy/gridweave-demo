@@ -1,3 +1,4 @@
+import { DemoLinks } from '../Tutorial/DemoLinks'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Puzzle } from '../../types'
 import type { Album } from '../../utils/albums'
@@ -262,8 +263,9 @@ interface Props {
   /**
    * 「某某章 · 完成」那块（或集齐整册的那块）已经在屏上稳住了一会儿。
    * 商店邀评挂在这一刻之后（见 utils/storeReview）：系统弹层不能压在揭晓和结算的节奏上。
+   * 可以返回一个函数，结算卡卸下（下一关、返回）时调用，用来作废还没弹出来的请求。
    */
-  onChapterCompleteShown?: () => void
+  onChapterCompleteShown?: () => void | (() => void)
 }
 
 /*
@@ -429,8 +431,14 @@ export function WinModal({
   onChapterCompleteShownRef.current = onChapterCompleteShown
   useEffect(() => {
     if (!chapterShown) return
-    const timer = window.setTimeout(() => onChapterCompleteShownRef.current?.(), CHAPTER_SHOWN_MS)
-    return () => window.clearTimeout(timer)
+    let leave: void | (() => void)
+    const timer = window.setTimeout(() => {
+      leave = onChapterCompleteShownRef.current?.()
+    }, CHAPTER_SHOWN_MS)
+    return () => {
+      window.clearTimeout(timer)
+      leave?.()
+    }
   }, [chapterShown])
 
   return (
@@ -556,6 +564,7 @@ export function WinModal({
           </div>
         </>
       )}
+      {isDemoBuild && <DemoLinks compact />}
     </div>
   )
 }

@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
+import { Capacitor } from '@capacitor/core'
+import { useModalFocus } from '../../hooks/useModalFocus'
+import { DemoLinks } from '../Tutorial/DemoLinks'
 import { AppLauncher } from '@capacitor/app-launcher'
 import { useDevBuild, useNativeAppInfo } from '../../hooks/useDevBuild'
 import { useSettings } from '../../hooks/settingsContext'
@@ -431,6 +434,10 @@ export function SettingsModal({ onClose, devWinNow }: SettingsModalProps) {
    */
   const [closing, setClosing] = useState(false)
   const dismiss = useCallback(() => setClosing(true), [])
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useModalFocus(dialogRef, dismiss)
+  const policyAnchor = t.locale.startsWith('zh') ? '#chinese' : '#english'
+  const vibrationAvailable = Capacitor.isNativePlatform() || (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function')
   const devBuild = useDevBuild()
   const appInfo = useNativeAppInfo()
   const revision = webGitRevision()
@@ -624,6 +631,8 @@ export function SettingsModal({ onClose, devWinNow }: SettingsModalProps) {
 
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       className={styles.overlay}
       data-closing={closing || undefined}
       role="dialog"
@@ -710,7 +719,7 @@ export function SettingsModal({ onClose, devWinNow }: SettingsModalProps) {
                 { value: true, label: t('settings.on') },
               ]}
             />
-            <Row
+            {vibrationAvailable && <><Row
               label={t('settings.vibration')}
               current={draft.vibration}
               onChoose={(value, silent) =>
@@ -737,7 +746,7 @@ export function SettingsModal({ onClose, devWinNow }: SettingsModalProps) {
                 { value: 'vivid', label: t('settings.vibrationVivid') },
               ]}
               disabled={!draft.vibration}
-            />
+            /></>}
           </section>
 
           <section className={styles.section}>
@@ -790,6 +799,7 @@ export function SettingsModal({ onClose, devWinNow }: SettingsModalProps) {
             也不会拿它来说事（诊断信息只在 DEV 包上多出两行）。
           */}
           <div className={styles.aboutList}>
+            {isDemoBuild && <DemoLinks />}
             {(isStoreBuild || isDemoBuild) && (
               <nav aria-label={t('settings.sectionAbout')}>
                 {canOpenStoreReview() && (
@@ -800,12 +810,12 @@ export function SettingsModal({ onClose, devWinNow }: SettingsModalProps) {
                 )}
                 <a
                   className={styles.aboutRow}
-                  href={PRIVACY_POLICY_URL}
+                  href={PRIVACY_POLICY_URL + policyAnchor}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(event) => {
                     event.preventDefault()
-                    openExternal(PRIVACY_POLICY_URL)
+                    openExternal(PRIVACY_POLICY_URL + policyAnchor)
                   }}
                 >
                   <span>{t('settings.privacy')}</span>
@@ -813,12 +823,12 @@ export function SettingsModal({ onClose, devWinNow }: SettingsModalProps) {
                 </a>
                 <a
                   className={styles.aboutRow}
-                  href={SUPPORT_URL}
+                  href={SUPPORT_URL + policyAnchor}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(event) => {
                     event.preventDefault()
-                    openExternal(SUPPORT_URL)
+                    openExternal(SUPPORT_URL + policyAnchor)
                   }}
                 >
                   <span>{t('settings.support')}</span>

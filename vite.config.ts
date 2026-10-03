@@ -1,3 +1,4 @@
+import { demoHtml } from './vite/demo-html.ts'
 import { execSync } from 'node:child_process'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -24,7 +25,7 @@ const { sha, builtAt } = revision()
 
 export default defineConfig({
   base: './',
-  plugins: [react(), nonogramLibrary({ only: readDemoManifest(process.cwd()) }), demoContent()],
+  plugins: [react(), nonogramLibrary({ only: readDemoManifest(process.cwd()) }), demoContent(), { name: 'demo-html', transformIndexHtml: demoHtml }],
   define: {
     'import.meta.env.VITE_GIT_REVISION': JSON.stringify(sha),
     'import.meta.env.VITE_BUILD_TIME': JSON.stringify(builtAt),

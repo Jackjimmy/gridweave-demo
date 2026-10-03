@@ -1,3 +1,5 @@
+import { isDemoBuild } from '../../config/demo'
+import { DemoLinks } from './DemoLinks'
 import { useCallback } from 'react'
 import type { RefObject } from 'react'
 import { useBackHandler } from '../../hooks/useBackHandler'
@@ -36,10 +38,11 @@ export function AboutCard({ rootRef, onClose }: Props) {
       texture={welcomeTexture()}
       onTapThrough={close}
       ariaLabel={t('about.aria')}
-      title={t('about.title')}
+      title={isDemoBuild ? `Gridweave · ${t('about.title')}` : t('about.title')}
       lines={aboutLines(t)}
       footAlign="end"
     >
+      {isDemoBuild && <DemoLinks compact />}
       <span className={styles.dismissHint}>{t('about.dismiss')}</span>
     </Spotlight>
   )
