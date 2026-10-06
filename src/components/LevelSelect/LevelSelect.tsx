@@ -269,27 +269,27 @@ export function LevelSelect({
         */}
         {isDemoBuild && !demoWide ? (
           <div className={styles.titleStack}>
-            <h1 className={styles.title} aria-label={isDemoBuild ? "Gridweave Nonogram" : "Nonogram"} data-coach="title">
+            <h1 className={styles.title} aria-label="Nonogram" data-coach="title">
               <button
                 type="button"
                 className={styles.titleButton}
                 aria-label={t('about.aria')}
                 onClick={() => setShowAbout(true)}
               >
-                {isDemoBuild ? <>Gridweave</> : <><span className={styles.titleMark}>NONO</span>GRAM</>}
+                <span className={styles.titleMark}>NONO</span>GRAM
               </button>
             </h1>
             <DemoTagline albums={albums} className={styles.demoSubtitle} />
           </div>
         ) : (
-          <h1 className={styles.title} aria-label={isDemoBuild ? "Gridweave Nonogram" : "Nonogram"} data-coach="title">
+          <h1 className={styles.title} aria-label="Nonogram" data-coach="title">
             <button
               type="button"
               className={styles.titleButton}
               aria-label={t('about.aria')}
               onClick={() => setShowAbout(true)}
             >
-              {isDemoBuild ? <>Gridweave</> : <><span className={styles.titleMark}>NONO</span>GRAM</>}
+              <span className={styles.titleMark}>NONO</span>GRAM
             </button>
           </h1>
         )}
