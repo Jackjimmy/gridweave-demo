@@ -1498,15 +1498,16 @@
   color: rgba(var(--color-accent-rgb, 59, 130, 246), 0.6);
 }
 
-/* ── 宽屏：一列书 + 一块面板 ─────────────────
-   这一段领走字标以下的全部高度，但书架与面板都按内容取高：富余均分在书架上方、
-   书架与面板之间、面板下方三处（space-evenly），字标、书架、关卡三行于是大致
-   平分整页，而不是面板一块独大。书架不许被压；装不下时面板收缩、正文自己滚。 */
+/* 宽屏：书架与选关面板按有限间距相邻，剩余高度留在页底。 */
 .themes[data-wide] {
+  /* 画册与关卡共用尺度，卡片保持比封面小一档，矮窗口允许整页滚动。 */
+  --demo-cover: clamp(76px, min(calc(64px + 3.5vw), 18dvh), 128px);
+  --demo-card: clamp(60px, calc(var(--demo-cover) * 0.62), 76px);
   flex: 1 1 auto;
   min-height: 0;
-  justify-content: space-evenly;
-  gap: 0;
+  justify-content: flex-start;
+  padding-top: clamp(40px, 9dvh, 80px);
+  gap: clamp(40px, 8dvh, 72px);
 }
 
 .demoShelf {
@@ -1514,7 +1515,7 @@
   flex: 0 0 auto;
   display: flex;
   justify-content: center;
-  gap: clamp(12px, 2.4vw, 26px);
+  gap: clamp(18px, 3vw, 36px);
   padding: 6px 0 2px;
 }
 
@@ -1522,27 +1523,24 @@
   flex: 0 0 auto;
 }
 
-/* 书架上的书：首页的主角，跟着窗口长得比面板里的关卡卡快（8.5vw 对 6.8vw），
-   1280×720 上封面 109px、1440×900 上 122px，封顶 124。
-   封面长的时候书名、尺寸、进度那几行**跟着一起长**（都按 vw），书才是整本一起放大；
-   只放封面画不放字，全屏上就是一幅大画底下压着几行小字（封顶 150 那版被否）。 */
+/* 书架是一级选择：封面、文字、内边距按同一尺度一起增长。 */
 .demoShelf .album {
-  --album-cover: clamp(56px, min(8.5vw, 18dvh), 124px);
-  --album-title-size: clamp(12px, 1.5vw, 17px);
-  --album-pad-y: clamp(6px, 0.7vw, 10px);
-  --album-gap: clamp(4px, 0.45vw, 7px);
+  --album-cover: var(--demo-cover);
+  --album-title-size: clamp(13px, calc(var(--demo-cover) * 0.14), 20px);
+  --album-pad-y: clamp(6px, calc(var(--demo-cover) * 0.075), 11px);
+  --album-gap: clamp(4px, calc(var(--demo-cover) * 0.05), 8px);
   cursor: pointer;
   opacity: 0.86;
   transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
 }
 
 .demoShelf .albumSize {
-  font-size: clamp(10px, 1vw, 13px);
+  font-size: clamp(10px, calc(var(--demo-cover) * 0.095), 14px);
 }
 
 .demoShelf .albumTally,
 .demoShelf .albumDone {
-  font-size: clamp(9.5px, 0.95vw, 12.5px);
+  font-size: clamp(9.5px, calc(var(--demo-cover) * 0.085), 13px);
 }
 
 .demoShelf .albumFoot {
@@ -1588,15 +1586,17 @@
  * 浓色压在页面上，比关卡卡还抢。封面色只在天头那一带说一句「这是哪本」，
  * 往下很快回到卡面；边、抬头下那条线、进度条读同一个色。
  *
- * 面板按内容取高（flex: 0 1 auto），不领富余——三行（字标、书架、关卡）的富余由
- * .themes[data-wide] 均分；只在装不下时收缩，正文自己滚。
+ * 面板按内容取高（flex: 0 1 auto）；只在装不下时收缩，正文自己滚。
  */
 .demoPanel {
+  align-self: center;
+  /* 六关之外预留章名、进度与两道章隔，三章节也能保持横排。 */
+  width: min(100%, calc(6 * var(--demo-card) + 248px));
   flex: 0 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: clamp(8px, 1.6dvh, 14px) clamp(12px, 2vw, 20px) clamp(10px, 1.8dvh, 16px);
+  padding: clamp(12px, 2dvh, 18px) clamp(12px, 2vw, 20px) clamp(16px, 2.2dvh, 22px);
   border: 1px solid rgba(var(--album-rgb), 0.3);
   border-radius: var(--radius-card);
   background: linear-gradient(180deg, rgba(var(--album-rgb), 0.12), var(--color-surface) 58%);
@@ -1662,10 +1662,7 @@
 
 /* 面板正文：章并排（规则在 AlbumPage.module.css 的 [data-chapter-row]），装不下就自己滚 */
 .demoPanelBody {
-  /* 关卡卡的边长：比书架上的封面画小一档、长得也慢一档（6.8vw 对 9.5vw）——
-     书是这一屏的主角，面板是它翻开的那一页。最宽的一排（天空之上 2+3+1，六张卡
-     加章名与章隔）约 6.2 卡 + 200px，页宽 74vw 下任何宽度都落在页内 */
-  --demo-card: clamp(52px, min(6.8vw, 13dvh), 96px);
+  /* 复用 App 的关卡卡片，宽屏只调整尺寸；章隔与换行仍由 ChapterGrid 管理。 */
   flex: 1 1 auto;
   min-height: 0;
   /* 竖着是 flex 列：里面那组章靠 margin-block: auto 在富余里居中，装不下时照常从顶上滚 */
@@ -1718,14 +1715,12 @@
   }
 
   .page[data-demo] .demoPanelBody {
-    --demo-card: clamp(52px, min(6.8vw, 15dvh), 96px);
     overflow: visible;
   }
 
-  /* 矮横屏上书退回手机那档大小，三段缝各收一档：书名底下多了那行「5×5」，高度从缝里找回来 */
-  .page[data-demo] .demoShelf .album {
-    --album-cover: clamp(40px, min(8vw, 15dvh), 100px);
-    --album-pad-y: 4px;
-    --album-gap: 3px;
+  .page[data-demo] .themes[data-wide] {
+    padding-top: 20px;
+    gap: 24px;
   }
+
 }

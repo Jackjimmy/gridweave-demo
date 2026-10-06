@@ -529,3 +529,20 @@ describe('useGameState', () => {
     })
   })
 })
+
+
+describe('store listing screenshot board', () => {
+  it('fills the answer without winning, ignores strokes, and resets normally', () => {
+    const { result } = renderHook(() => useGameState(puzzle))
+    act(() => { result.current.screenshot() })
+    expect(result.current.board).toEqual([['filled', 'filled'], ['marked', 'filled']])
+    expect(result.current.status).toBe('playing')
+    expect(result.current.boardChangeSource).toBe('screenshot')
+    expect(result.current.previewStroke(0, 0, 'fill')).toBeNull()
+    act(() => { result.current.beginStroke(0, 0, 'fill'); result.current.undo() })
+    expect(result.current.board[0][0]).toBe('filled')
+    act(() => { result.current.reset() })
+    expect(result.current.boardChangeSource).toBe('reset')
+    expect(result.current.status).toBe('playing')
+  })
+})

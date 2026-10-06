@@ -15,6 +15,7 @@ import { currentBuildInstalledAt, webGitRevision } from '../../utils/devBuild'
 import { LOCALES, LOCALE_ENDONYM, LOCALE_TAG, detectLocale, localeTag, useT } from '../../i18n'
 import { applyLocalePreference, useI18nBootState, useLocalePreference } from '../../i18n/boot'
 import type { LocalePreference } from '../../i18n/preference'
+import { storeListing } from '../../utils/storeListing'
 import { DevMenu } from './DevMenu'
 import { ReviewAccessPanel } from './ReviewAccess'
 import { isPlayBuild, isStoreBuild } from '../../config/distribution'
@@ -357,9 +358,10 @@ interface SettingsModalProps {
   onClose: () => void
   /** 对局里打开时传进来，开发菜单据此多出一条「立刻通关本关」 */
   devWinNow?: () => void
+  devFillAnswer?: () => void
 }
 
-export function SettingsModal({ onClose, devWinNow }: SettingsModalProps) {
+export function SettingsModal({ onClose, devWinNow, devFillAnswer }: SettingsModalProps) {
   /*
    * 草稿：面板开着的时候，所有选中态都读它。
    *
@@ -776,7 +778,7 @@ export function SettingsModal({ onClose, devWinNow }: SettingsModalProps) {
           <LanguageSection />
 
           {/* 试玩版不挂开发者菜单：它挂在任何人都打得开的网页上，本地 dev 服务器也一样不挂 */}
-          {devBuild && !isDemoBuild && <DevMenu onWinNow={devWinNow} onClose={dismiss} />}
+          {(devBuild || storeListing) && !isDemoBuild && <DevMenu onFillAnswer={devFillAnswer} onWinNow={devWinNow} onClose={dismiss} />}
 
           {/* 完整版只在商店渠道（Play / App Store）上存在；直装包一行都不该多出来（见 billing/entitlement） */}
           {isStoreBuild && <FullGameSection />}

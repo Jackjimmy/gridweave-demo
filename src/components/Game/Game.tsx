@@ -1,3 +1,4 @@
+import { storeListing } from '../../utils/storeListing'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { App as CapApp } from '@capacitor/app'
@@ -268,7 +269,7 @@ export function Game({
    * 这时候该重新找一条最基础的线给他，而不是继续把上一条讲深。
    */
   const requestHint = useCallback(() => {
-    if (game.status !== 'playing') return
+    if (game.status !== 'playing' || game.boardChangeSource === 'screenshot') return
     const board = game.board
     setHint((current) => {
       const token = (current?.token ?? 0) + 1
@@ -277,7 +278,7 @@ export function Game({
       }
       return { hint: findHint(board, puzzle.clues, puzzle.solution), board, level: 1, token }
     })
-  }, [game.board, game.status, puzzle.clues, puzzle.solution])
+  }, [game.board, game.status, game.boardChangeSource, puzzle.clues, puzzle.solution])
 
   // 玩家一动盘面，提示即刻作废——它是对某个具体盘面说的话
   useEffect(() => {
@@ -524,7 +525,7 @@ export function Game({
     steps: tutorialSteps,
   })
   const learningTip = useLearningTip(puzzle, game.board,
-    learningTools && game.status === 'playing' && !reading && !showSettings && !restartAsked &&
+    learningTools && game.status === 'playing' && game.boardChangeSource !== 'screenshot' && !reading && !showSettings && !restartAsked &&
     (!coach.active || Boolean(coach.step?.independent)), game.canUndo, Boolean(hint))
   const learningNote = learningTip === 'undo' ? t('journey.undoTip')
     : learningTip === 'hint' ? t('journey.hintTip') : null
@@ -536,7 +537,7 @@ export function Game({
    * 轮到他涂格子时计时照常走——他确实在解这一局，成绩就该算数。
    */
   const { elapsed, reset: resetElapsed } = useTimer(
-    game.status === 'playing' && !coach.reading && !reading,
+    game.status === 'playing' && game.boardChangeSource !== 'screenshot' && !coach.reading && !reading,
     resume?.elapsedSeconds ?? 0,
   )
 
@@ -638,8 +639,8 @@ export function Game({
   const clueView = clueViewRef.current
 
   // 最新状态镜像到 ref，供防抖落盘 / 卸载 flush 读取
-  const latestRef = useRef({ board: game.board, elapsed, status: game.status })
-  latestRef.current = { board: game.board, elapsed, status: game.status }
+  const latestRef = useRef({ board: game.board, elapsed, status: game.status, source: game.boardChangeSource })
+  latestRef.current = { board: game.board, elapsed, status: game.status, source: game.boardChangeSource }
   const bestTime = initialProgress?.bestTimeSeconds
   const everCompleted = initialProgress?.everCompleted ?? initialProgress?.completed ?? false
   // 这一关是什么时候解开的：本局一笔不改它，只是原样抄进每一次落盘（见 buildSnapshot）
@@ -707,7 +708,7 @@ export function Game({
     setHint(null)
     lastFilledRef.current = null
     completedRef.current = false
-    latestRef.current = { board, elapsed: 0, status: 'playing' }
+    latestRef.current = { board, elapsed: 0, status: 'playing', source: 'reset' }
     onPersistRef.current(puzzle.id, buildSnapshot(board, 0))
   }, [puzzle, resetGameState, resetElapsed, buildSnapshot])
 
@@ -775,7 +776,7 @@ export function Game({
 
   // 棋盘变更后防抖落盘
   useEffect(() => {
-    if (game.status !== 'playing') return
+    if (game.status !== 'playing' || game.boardChangeSource === 'screenshot') return
     const timer = setTimeout(() => {
       onPersistRef.current(
         puzzle.id,
@@ -783,12 +784,12 @@ export function Game({
       )
     }, SAVE_DEBOUNCE_MS)
     return () => clearTimeout(timer)
-  }, [game.board, game.status, puzzle.id, buildSnapshot])
+  }, [game.board, game.status, game.boardChangeSource, puzzle.id, buildSnapshot])
 
   /** 把 latestRef 里最新的那一份立刻写进去，不等防抖；胜利态已另行处理，这里不碰 */
   const persistNow = useCallback(() => {
-    const { board, elapsed: seconds, status } = latestRef.current
-    if (status !== 'playing') return
+    const { board, elapsed: seconds, status, source } = latestRef.current
+    if (status !== 'playing' || source === 'screenshot') return
     onPersistRef.current(puzzle.id, buildSnapshot(board, seconds))
   }, [puzzle.id, buildSnapshot])
 
@@ -1204,7 +1205,7 @@ export function Game({
         </ConfirmSheet>
       )}
       {showSettings && (
-        <SettingsModal onClose={() => setShowSettings(false)} devWinNow={game.solve} />
+        <SettingsModal onClose={() => setShowSettings(false)} devWinNow={game.solve} devFillAnswer={storeListing ? () => { game.screenshot(); resetElapsed(); setHint(null); setHovered(null); setShowTutorial(false); setShowSizeIntro(false); setShowHintIntro(false) } : undefined} />
       )}
       {game.status === 'won' && winCardMounted && (
         <WinModal

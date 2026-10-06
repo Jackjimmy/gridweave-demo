@@ -4,6 +4,6 @@
  * Settings only mounts it on internal debug builds, never with `isDemoBuild`. The production
  * menu lives in the private repository.
  */
-export function DevMenu(_props: { onWinNow?: () => void; onClose: () => void }): null {
+export function DevMenu(_props: { onWinNow?: () => void; onFillAnswer?: () => void; onClose: () => void }): null {
   return null
 }

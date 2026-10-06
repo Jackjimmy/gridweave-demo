@@ -1,4 +1,3 @@
-import { DemoLinks } from '../Tutorial/DemoLinks'
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Puzzle, PuzzleProgress } from '../../types'
 import { authAvailable } from '../../config/auth'
@@ -281,7 +280,6 @@ export function LevelSelect({
               </button>
             </h1>
             <DemoTagline albums={albums} className={styles.demoSubtitle} />
-            <DemoLinks compact />
           </div>
         ) : (
           <h1 className={styles.title} aria-label={isDemoBuild ? "Gridweave Nonogram" : "Nonogram"} data-coach="title">
@@ -295,7 +293,7 @@ export function LevelSelect({
             </button>
           </h1>
         )}
-        {demoWide && <div><DemoTagline albums={albums} className={styles.demoTagline} /><DemoLinks compact /></div>}
+        {demoWide && <DemoTagline albums={albums} className={styles.demoTagline} />}
 
         {daily && onSelectDaily && (
           <button

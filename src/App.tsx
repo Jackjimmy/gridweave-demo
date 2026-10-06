@@ -1,3 +1,4 @@
+import { storeListing, STORE_LISTING_OPEN } from './utils/storeListing'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import { flushSync } from 'react-dom'
@@ -606,6 +607,21 @@ export default function App() {
     },
     [pendingPuzzleId],
   )
+
+  useEffect(() => {
+    if (!storeListing) return
+    const open = (event: Event) => {
+      const id: unknown = (event as CustomEvent<unknown>).detail
+      if (typeof id !== 'string' || !levelIds.includes(id)) return
+      const album = albums.find((entry) => entry.puzzles.some((p) => p.id === id))
+      setLessonOffer(null)
+      setLessonRequested(false)
+      setLessonReturnId(null)
+      selectPuzzle(id, () => { setOpenAlbumId(album?.id ?? null); setLastSelectedId(id) })
+    }
+    window.addEventListener(STORE_LISTING_OPEN, open)
+    return () => window.removeEventListener(STORE_LISTING_OPEN, open)
+  }, [albums, selectPuzzle])
 
   const choosePuzzle = useCallback((id: string) => {
     /*

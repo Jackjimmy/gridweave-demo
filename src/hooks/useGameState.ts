@@ -44,7 +44,7 @@ interface State {
   board: Board
   status: GameStatus
   /** 盘面最后一次变化来自哪里；反馈层只响应真实 stroke，撤销/重开不伪装成落子。 */
-  boardChangeSource: 'init' | 'stroke' | 'undo' | 'reset' | 'solve'
+  boardChangeSource: 'init' | 'stroke' | 'undo' | 'reset' | 'solve' | 'screenshot'
   stroke: Stroke | null
   /*
    * 本次笔画落笔前的盘面。撤销以「一笔」为单位——点一格和拖一行都是一笔，
@@ -63,6 +63,7 @@ type Action =
   | { type: 'UNDO' }
   | { type: 'RESET' }
   | { type: 'SOLVE' }
+  | { type: 'SCREENSHOT' }
 
 /*
  * 撤销栈上限。一局 15×15 的落笔数远不止这些，但玩家真正会回溯的只有最近几步；
@@ -176,11 +177,11 @@ function makeReducer(puzzle: Puzzle, rules: GameRules) {
      * 结算卡、解锁提示时，没必要每次真的把一张 15×15 涂完。
      * 撤销栈清掉：跳过来的这一步不该能退回去，退回去的盘面本来也不存在。
      */
-    if (action.type === 'SOLVE') {
+    if (action.type === 'SOLVE' || action.type === 'SCREENSHOT') {
       return {
         board: puzzle.solution.map((line) => line.map((v) => (v ? 'filled' : 'marked'))),
-        status: 'won',
-        boardChangeSource: 'solve',
+        status: action.type === 'SCREENSHOT' ? 'playing' : 'won',
+        boardChangeSource: action.type === 'SCREENSHOT' ? 'screenshot' : 'solve',
         stroke: null,
         strokeBase: null,
         history: [],
@@ -188,7 +189,7 @@ function makeReducer(puzzle: Puzzle, rules: GameRules) {
     }
     // 胜利那一步会把 stroke 清掉，但快照还挂着；抬手这一下要照常收尾
     if (action.type === 'END_STROKE') return commitStroke(state)
-    if (state.status === 'won') return state
+    if (state.status === 'won' || state.boardChangeSource === 'screenshot') return state
     switch (action.type) {
       case 'BEGIN_STROKE': {
         const stroke = strokeFor(state.board[action.row][action.col], action.intent, rules.strokeRule)
@@ -295,7 +296,7 @@ export function useGameState(puzzle: Puzzle, savedBoard?: string, rules: GameRul
   const previewStroke = useCallback(
     (row: number, col: number, intent: CellIntent): CellMutation['kind'] | null => {
       const current = stateRef.current
-      if (current.status === 'won' || isPresetMark(puzzle, row, col)) return null
+      if (current.status === 'won' || current.boardChangeSource === 'screenshot' || isPresetMark(puzzle, row, col)) return null
       const stroke = strokeFor(current.board[row][col], intent, rules.strokeRule)
       if (!stroke) return null
       return stroke.target === 'filled' ? 'fill' : stroke.target === 'marked' ? 'mark' : 'erase'
@@ -323,7 +324,10 @@ export function useGameState(puzzle: Puzzle, savedBoard?: string, rules: GameRul
   /** 只给 DEV 包的开发菜单用 */
   const solve = useCallback(() => applyAction({ type: 'SOLVE' }), [applyAction])
 
+  const screenshot = useCallback(() => applyAction({ type: 'SCREENSHOT' }), [applyAction])
+
   return {
+    screenshot,
     board: state.board,
     boardChangeSource: state.boardChangeSource,
     status: state.status,
