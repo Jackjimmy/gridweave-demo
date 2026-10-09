@@ -437,7 +437,7 @@ export function SettingsModal({ onClose, devWinNow, devFillAnswer }: SettingsMod
   const [closing, setClosing] = useState(false)
   const dismiss = useCallback(() => setClosing(true), [])
   const dialogRef = useRef<HTMLDivElement>(null)
-  useModalFocus(dialogRef, dismiss)
+  useModalFocus(dialogRef)
   const policyAnchor = t.locale.startsWith('zh') ? '#chinese' : '#english'
   const vibrationAvailable = Capacitor.isNativePlatform() || (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function')
   const devBuild = useDevBuild()
